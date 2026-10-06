@@ -1,0 +1,37 @@
+# Binaries
+bin/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary, output & coverprofile
+*.test
+*.out
+
+# Environment variables
+.env
+
+# Google session cookies - NEVER commit
+cookies.txt
+cookies*.json
+
+# Internal tooling state
+.omo/
+
+# Logs
+*.log
+
+# Go workspace
+go.work
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDEs
+.idea/
+.vscode/
+*.swp
+*~

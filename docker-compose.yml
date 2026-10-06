@@ -1,0 +1,19 @@
+services:
+  dc-music-bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: dc-music-bot
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      # Container-internal path; overrides the host path from .env
+      YTDLP_COOKIES_FILE: /app/cookies.txt
+    volumes:
+      - ./cookies.txt:/app/cookies.txt:ro
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
