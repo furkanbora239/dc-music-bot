@@ -21,8 +21,9 @@
   - Inspired by modern clients like **SimpMusic** and **PipePipe**.
   - Fast search and direct stream resolution via **Piped API** (YouTube Music).
   - Built-in fallback to **yt-dlp** for extreme resilience against YouTube IP blocks and bot-detection.
-- ⚡ **Discord Slash Commands:** Full Discord Application Command support (`/play`, `/skip`, `/queue`, `/loop`, etc.).
-- 🎛️ **Interactive UI Buttons:** Control music playback with one click (⏯️ Play/Pause, ⏭️ Skip, ⏹️ Stop, 🔁 Loop).
+- ⚡ **Discord Slash Commands:** Full Discord Application Command support (`/play`, `/skip`, `/queue`, `/loop`, `/autoplay`, etc.).
+- 📻 **Autoplay / Radio Mode:** Automatically queues and plays recommended songs when the queue ends (like Spotify/YouTube Music), with duplicate-prevention history.
+- 🎛️ **Interactive UI Buttons:** Control music playback with one click (⏯️ Play/Pause, ⏭️ Skip, ⏹️ Stop, 🔁 Loop, 📻 Autoplay).
 - 🛡️ **Guild-Isolated Architecture:** Independent goroutine and playback queue per Discord server.
 - ⏱️ **Auto Idle Disconnect:** Automatically disconnects from voice after inactivity (default: 3 minutes) to save CPU and bandwidth.
 - 🐳 **Docker & Docker Compose:** Multi-stage minimal container ready for instant self-hosting on any VPS or homelab.
@@ -43,6 +44,7 @@
 | `/loop` | `<mode>` | Configures loop mode (`off`, `track`, `queue`) | Tekrar modunu ayarlar (kapalı, tek şarkı, tüm kuyruk) |
 | `/shuffle` | - | Randomly shuffles the upcoming playlist | Kuyruğu rastgele karıştırır |
 | `/volume` | `<1-100>` | Adjusts audio volume | Ses seviyesini ayarlar |
+| `/autoplay` | `[mode]` | Toggles or configures autoplay (`on`, `off`, `status`) | Şarkı bitince önerilenlerle devam etmeyi ayarlar |
 | `/help` | - | Lists commands and help documentation | Komut yardım listesini görüntüler |
 
 ---
@@ -114,8 +116,9 @@ make run
 | `PIPED_API_URL` | `https://api.piped.private.coffee` | Kullanılacak Piped API instance adresi |
 | `DEFAULT_VOLUME` | `100` | Başlangıç ses seviyesi (1-100) |
 | `IDLE_TIMEOUT` | `3m` | Kanalda kimse kalmadığında veya şarkı bittiğinde çıkış süresi |
+| `DEFAULT_AUTOPLAY` | `false` | Kuyruk bittiğinde otomatik önerilen şarkılarla devam etme modu (`true` veya `false`) |
 | `LOG_LEVEL` | `info` | Loglama seviyesi (`info` veya `debug`) |
-| `YTDLP_COOKIES_FILE` | *Boş* | yt-dlp için Netscape formatlı `cookies.txt` yolu (bot-duvarı için opsiyonel kurtarma yolu; boş = misafir mod). Docker: `docker-compose.yml` içindeki yorum satırındaki cookies volume'unu açın |
+| `YTDLP_COOKIES_FILE` | *Boş* | yt-dlp için Netscape formatlı `cookies.txt` yolu (bot-duvarı için opsiyonel kurtarma yolu; boş = misafir mod). Docker: `docker-compose.yml` içindeki cookies volume'u aktiftir; **yazılabilir** bırakın (`:ro` eklemeyin) — yt-dlp çıkışta güncellenmiş cookie'leri dosyaya geri yazar, read-only mount her extraction'ı çökertir |
 | `YTDLP_COOKIES_FROM_BROWSER` | *Boş* | yt-dlp `--cookies-from-browser` tarayıcı adı (`chrome`, `firefox`, `safari`); `YTDLP_COOKIES_FILE` doluysa o önceliklidir |
 
 > 🍪 **Cookie notu / Cookie note:** Varsayılan davranış **misafir (girişsiz)** moddur; her iki değişken de boşsa yt-dlp komut satırı eskisiyle tamamen aynıdır. Bazı çıkış IP'lerinde YouTube "Sign in to confirm you're not a bot" dediğinde, `YTDLP_COOKIES_FILE` ile bir `cookies.txt` verin ya da `YTDLP_COOKIES_FROM_BROWSER` ile tarayıcı seçin. Dosya bulunamazsa bot çökmez, uyarı loglayıp misafir modda devam eder. The default is guest (no-login) mode with identical yt-dlp args as before; both options are only a rescue path for the bot-detection wall.

@@ -35,6 +35,7 @@ func (m *Manager) GetOrCreate(
 	resolver *audio.Resolver,
 	defaultVolume int,
 	idleTimeout time.Duration,
+	defaultAutoplay bool,
 ) *Player {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -57,6 +58,7 @@ func (m *Manager) GetOrCreate(
 		resolver,
 		defaultVolume,
 		idleTimeout,
+		defaultAutoplay,
 		func(gID string) {
 			m.Remove(gID)
 		},

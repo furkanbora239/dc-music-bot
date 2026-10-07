@@ -46,12 +46,13 @@ type pipedSearchItem struct {
 }
 
 type pipedStreamResponse struct {
-	Title        string             `json:"title"`
-	Duration     int64              `json:"duration"`
-	ThumbnailURL string             `json:"thumbnailUrl"`
-	Uploader     string             `json:"uploader"`
-	AudioStreams []pipedAudioStream `json:"audioStreams"`
-	Error        string             `json:"error"`
+	Title          string             `json:"title"`
+	Duration       int64              `json:"duration"`
+	ThumbnailURL   string             `json:"thumbnailUrl"`
+	Uploader       string             `json:"uploader"`
+	AudioStreams   []pipedAudioStream `json:"audioStreams"`
+	RelatedStreams []pipedSearchItem  `json:"relatedStreams"`
+	Error          string             `json:"error"`
 }
 
 type pipedAudioStream struct {
@@ -182,6 +183,77 @@ func (p *PipedSource) GetStreamURL(ctx context.Context, track *Track) (string, e
 	}
 	track.StreamURL = t.StreamURL
 	return t.StreamURL, nil
+}
+
+// GetRecommendations retrieves related tracks from Piped's /streams/{id} endpoint.
+func (p *PipedSource) GetRecommendations(ctx context.Context, seed *Track, limit int) ([]*Track, error) {
+	if limit <= 0 {
+		limit = 10
+	}
+
+	videoID := seed.ID
+	if videoID == "" && seed.WebpageURL != "" {
+		videoID = extractVideoID(seed.WebpageURL)
+	}
+	if videoID == "" {
+		return nil, errors.New("invalid youtube video id for recommendations")
+	}
+
+	streamURL := fmt.Sprintf("%s/streams/%s", p.baseURL, videoID)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, streamURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create recommendations request: %w", err)
+	}
+	req.Header.Set("User-Agent", "dc-music-bot/1.0")
+
+	resp, err := p.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("piped recommendations request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("piped stream returned HTTP %d", resp.StatusCode)
+	}
+
+	var result pipedStreamResponse
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, fmt.Errorf("failed to decode piped stream json: %w", err)
+	}
+
+	if result.Error != "" {
+		return nil, fmt.Errorf("piped api stream error: %s", result.Error)
+	}
+
+	var tracks []*Track
+	for _, item := range result.RelatedStreams {
+		if item.Type != "stream" {
+			continue
+		}
+		relID := extractVideoID(item.URL)
+		if relID == "" || relID == videoID {
+			continue
+		}
+
+		tracks = append(tracks, &Track{
+			ID:         relID,
+			Title:      item.Title,
+			Artist:     item.UploaderName,
+			Duration:   time.Duration(item.Duration) * time.Second,
+			WebpageURL: fmt.Sprintf("https://www.youtube.com/watch?v=%s", relID),
+			Thumbnail:  item.Thumbnail,
+		})
+
+		if len(tracks) >= limit {
+			break
+		}
+	}
+
+	if len(tracks) == 0 {
+		return nil, errors.New("no recommendations found in piped response")
+	}
+
+	return tracks, nil
 }
 
 func selectBestAudioStream(streams []pipedAudioStream) string {

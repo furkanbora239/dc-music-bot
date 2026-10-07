@@ -1,8 +1,10 @@
 package audio
 
 import (
+	"context"
 	"reflect"
 	"testing"
+	"time"
 )
 
 // The fixed base flag slices mirror exactly what Search and GetStreamURL pass
@@ -128,3 +130,37 @@ func TestNewYtDlpSourceTrimsAndDefaultsBinary(t *testing.T) {
 		t.Errorf("expected trimmed browser, got %q", y.cookiesFromBrowser)
 	}
 }
+
+func TestYtDlpGetRecommendationsLive(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping live test in short mode")
+	}
+	y := NewYtDlpSource("yt-dlp", "", "")
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
+	seed := &Track{
+		ID:         "kJQP7kiw5Fk",
+		Title:      "Despacito",
+		Artist:     "Luis Fonsi",
+		WebpageURL: "https://www.youtube.com/watch?v=kJQP7kiw5Fk",
+	}
+
+	recs, err := y.GetRecommendations(ctx, seed, 3)
+	if err != nil {
+		t.Fatalf("unexpected error fetching recommendations: %v", err)
+	}
+	if len(recs) == 0 {
+		t.Fatal("expected at least 1 recommendation, got 0")
+	}
+	for i, r := range recs {
+		if r.ID == "" || r.ID == seed.ID {
+			t.Errorf("rec[%d] invalid or equals seed ID: %q", i, r.ID)
+		}
+		if r.Title == "" {
+			t.Errorf("rec[%d] empty title", i)
+		}
+		t.Logf("Rec #%d: [%s] %s (%s)", i+1, r.ID, r.Title, r.Artist)
+	}
+}
+

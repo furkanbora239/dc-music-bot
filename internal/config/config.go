@@ -21,6 +21,7 @@ type Config struct {
 	DefaultVolume   int
 	IdleTimeout     time.Duration
 	LogLevel        string
+	DefaultAutoplay bool
 
 	// Optional yt-dlp cookie rescue options for YouTube's "Sign in to confirm
 	// you're not a bot" wall on some egress IPs. Both are OFF (empty) by
@@ -77,6 +78,11 @@ func Load() (*Config, error) {
 		logLevel = "info"
 	}
 
+	defaultAutoplay := false
+	if apVal := strings.ToLower(strings.TrimSpace(os.Getenv("DEFAULT_AUTOPLAY"))); apVal == "true" || apVal == "1" || apVal == "yes" || apVal == "on" {
+		defaultAutoplay = true
+	}
+
 	// Optional yt-dlp cookie rescue options. Empty (the default) keeps the bot
 	// in guest (no-login) mode with exactly the same yt-dlp arguments as before.
 	cookiesFile := strings.TrimSpace(os.Getenv("YTDLP_COOKIES_FILE"))
@@ -114,6 +120,7 @@ func Load() (*Config, error) {
 		DefaultVolume:           volume,
 		IdleTimeout:             idleTimeout,
 		LogLevel:                logLevel,
+		DefaultAutoplay:         defaultAutoplay,
 		YtDlpCookiesFile:        cookiesFile,
 		YtDlpCookiesFromBrowser: cookiesFromBrowser,
 	}, nil

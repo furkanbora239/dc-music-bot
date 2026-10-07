@@ -59,6 +59,18 @@ func (r *Resolver) GetTrack(ctx context.Context, idOrURL string) (*Track, error)
 	}
 }
 
+// joinStreamErrors composes the user-visible error returned when both the
+// yt-dlp and Piped sources fail to resolve a stream URL in hybrid mode. It
+// preserves BOTH underlying errors (via two %w verbs) so the root cause from
+// either source is visible when the error is formatted with %v or Error().
+// fresh distinguishes the ResolveStreamURLFresh wording from ResolveStreamURL.
+func joinStreamErrors(fresh bool, ytdlpErr, pipedErr error) error {
+	if fresh {
+		return fmt.Errorf("failed to resolve fresh audio stream from both yt-dlp and piped (yt-dlp: %w; piped: %w)", ytdlpErr, pipedErr)
+	}
+	return fmt.Errorf("failed to resolve audio stream from both yt-dlp and piped (yt-dlp: %w; piped: %w)", ytdlpErr, pipedErr)
+}
+
 // ResolveStreamURL ensures the track has a valid playable stream URL.
 func (r *Resolver) ResolveStreamURL(ctx context.Context, track *Track) (string, error) {
 	if track.StreamURL != "" {
@@ -72,14 +84,14 @@ func (r *Resolver) ResolveStreamURL(ctx context.Context, track *Track) (string, 
 		return r.ytdlp.GetStreamURL(ctx, track)
 	default: // "hybrid"
 		// In hybrid mode, yt-dlp is locally run and fast (~2s) with zero proxy/500 errors.
-		streamURL, err := r.ytdlp.GetStreamURL(ctx, track)
-		if err == nil && streamURL != "" {
+		streamURL, ytdlpErr := r.ytdlp.GetStreamURL(ctx, track)
+		if ytdlpErr == nil && streamURL != "" {
 			return streamURL, nil
 		}
-		slog.Warn("yt-dlp stream resolution failed, attempting Piped stream fallback", "error", err, "track", track.Title)
-		streamURL, err = r.piped.GetStreamURL(ctx, track)
-		if err != nil {
-			return "", fmt.Errorf("failed to resolve audio stream from both yt-dlp and piped: %w", err)
+		slog.Warn("yt-dlp stream resolution failed, attempting Piped stream fallback", "error", ytdlpErr, "track", track.Title)
+		streamURL, pipedErr := r.piped.GetStreamURL(ctx, track)
+		if pipedErr != nil {
+			return "", joinStreamErrors(false, ytdlpErr, pipedErr)
 		}
 		return streamURL, nil
 	}
@@ -101,15 +113,33 @@ func (r *Resolver) ResolveStreamURLFresh(ctx context.Context, track *Track) (str
 	case "ytdlp":
 		return r.ytdlp.GetStreamURL(ctx, track)
 	default: // "hybrid"
-		streamURL, err := r.ytdlp.GetStreamURL(ctx, track)
-		if err == nil && streamURL != "" {
+		streamURL, ytdlpErr := r.ytdlp.GetStreamURL(ctx, track)
+		if ytdlpErr == nil && streamURL != "" {
 			return streamURL, nil
 		}
-		slog.Warn("yt-dlp fresh stream resolution failed, attempting Piped fallback", "error", err, "track", track.Title)
-		streamURL, err = r.piped.GetStreamURL(ctx, track)
-		if err != nil {
-			return "", fmt.Errorf("failed to resolve fresh audio stream from both yt-dlp and piped: %w", err)
+		slog.Warn("yt-dlp fresh stream resolution failed, attempting Piped fallback", "error", ytdlpErr, "track", track.Title)
+		streamURL, pipedErr := r.piped.GetStreamURL(ctx, track)
+		if pipedErr != nil {
+			return "", joinStreamErrors(true, ytdlpErr, pipedErr)
 		}
 		return streamURL, nil
 	}
 }
+
+// GetRecommendations retrieves recommended tracks based on a seed track.
+func (r *Resolver) GetRecommendations(ctx context.Context, seed *Track, limit int) ([]*Track, error) {
+	switch r.mode {
+	case "piped":
+		return r.piped.GetRecommendations(ctx, seed, limit)
+	case "ytdlp":
+		return r.ytdlp.GetRecommendations(ctx, seed, limit)
+	default: // "hybrid"
+		tracks, err := r.ytdlp.GetRecommendations(ctx, seed, limit)
+		if err == nil && len(tracks) > 0 {
+			return tracks, nil
+		}
+		slog.Warn("yt-dlp recommendations failed, attempting Piped fallback", "error", err, "track", seed.Title)
+		return r.piped.GetRecommendations(ctx, seed, limit)
+	}
+}
+

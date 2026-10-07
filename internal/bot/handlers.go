@@ -43,6 +43,8 @@ func (b *Bot) handleSlashCommand(s *discordgo.Session, i *discordgo.InteractionC
 		b.handleShuffle(s, i)
 	case "volume":
 		b.handleVolume(s, i)
+	case "autoplay":
+		b.handleAutoplay(s, i)
 	case "help":
 		b.handleHelp(s, i)
 	default:
@@ -87,17 +89,32 @@ func (b *Bot) handlePlay(s *discordgo.Session, i *discordgo.InteractionCreate) {
 		b.resolver,
 		b.cfg.DefaultVolume,
 		b.cfg.IdleTimeout,
+		b.cfg.DefaultAutoplay,
 	)
 
 	currentPlaying := p.NowPlaying()
-	p.Enqueue(track)
+	for _, t := range tracks {
+		t.RequestedBy = i.Member.User.Username
+		p.Enqueue(t)
+	}
 
-	if currentPlaying == nil {
-		b.editDeferredResponse(s, i, fmt.Sprintf("▶️ Loading **[%s](%s)** by *%s*...", track.Title, track.WebpageURL, track.Artist))
+	if len(tracks) > 1 {
+		if currentPlaying == nil {
+			b.editDeferredResponse(s, i, fmt.Sprintf("📑 Loaded playlist (**%d** tracks)! ▶️ Now playing: **[%s](%s)** by *%s*",
+				len(tracks), tracks[0].Title, tracks[0].WebpageURL, tracks[0].Artist))
+		} else {
+			b.editDeferredResponse(s, i, fmt.Sprintf("📑 Added **%d** tracks from playlist to queue! Starting with **[%s](%s)**",
+				len(tracks), tracks[0].Title, tracks[0].WebpageURL))
+		}
 	} else {
-		pos := p.Queue().Size()
-		b.editDeferredResponse(s, i, fmt.Sprintf("✅ Added to queue: **[%s](%s)** by *%s* (`%s`) — Position #%d",
-			track.Title, track.WebpageURL, track.Artist, track.FormatDuration(), pos))
+		track := tracks[0]
+		if currentPlaying == nil {
+			b.editDeferredResponse(s, i, fmt.Sprintf("▶️ Loading **[%s](%s)** by *%s*...", track.Title, track.WebpageURL, track.Artist))
+		} else {
+			pos := p.Queue().Size()
+			b.editDeferredResponse(s, i, fmt.Sprintf("✅ Added to queue: **[%s](%s)** by *%s* (`%s`) — Position #%d",
+				track.Title, track.WebpageURL, track.Artist, track.FormatDuration(), pos))
+		}
 	}
 }
 
@@ -272,6 +289,43 @@ func (b *Bot) handleVolume(s *discordgo.Session, i *discordgo.InteractionCreate)
 	b.respondText(s, i, fmt.Sprintf("🔊 Volume set to **%d%%**", lvl), false)
 }
 
+func (b *Bot) handleAutoplay(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	p := b.manager.Get(i.GuildID)
+	if p == nil {
+		b.respondText(s, i, "❌ Bot is not active in voice.", true)
+		return
+	}
+
+	opts := i.ApplicationCommandData().Options
+	if len(opts) == 0 {
+		enabled := p.ToggleAutoplay()
+		if enabled {
+			b.respondText(s, i, "📻 Autoplay is now **enabled**! Recommended songs will play automatically when the queue is empty.", false)
+		} else {
+			b.respondText(s, i, "📻 Autoplay is now **disabled**.", false)
+		}
+		return
+	}
+
+	mode := opts[0].StringValue()
+	switch mode {
+	case "on":
+		p.SetAutoplay(true)
+		b.respondText(s, i, "📻 Autoplay is now **enabled**! Recommended songs will play automatically when the queue is empty.", false)
+	case "off":
+		p.SetAutoplay(false)
+		b.respondText(s, i, "📻 Autoplay is now **disabled**.", false)
+	case "status":
+		status := "disabled"
+		if p.Autoplay() {
+			status = "enabled"
+		}
+		b.respondText(s, i, fmt.Sprintf("📻 Autoplay is currently **%s**.", status), false)
+	default:
+		b.respondText(s, i, "❌ Invalid mode. Use `on`, `off`, or `status`.", true)
+	}
+}
+
 func (b *Bot) handleHelp(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	embed := &discordgo.MessageEmbed{
 		Title:       "📖 Music Bot Help & Commands",
@@ -287,6 +341,7 @@ func (b *Bot) handleHelp(s *discordgo.Session, i *discordgo.InteractionCreate) {
 			{Name: "`/loop <off|track|queue>`", Value: "Configure repeat options", Inline: false},
 			{Name: "`/shuffle`", Value: "Randomly shuffle upcoming songs", Inline: false},
 			{Name: "`/volume <1-100>`", Value: "Adjust voice audio volume", Inline: false},
+			{Name: "`/autoplay [on|off|status]`", Value: "Toggle or configure autoplay for recommended tracks", Inline: false},
 		},
 		Footer: &discordgo.MessageEmbedFooter{
 			Text: "Open-source Discord Music Bot written in Go",
@@ -336,6 +391,13 @@ func (b *Bot) handleButtonComponent(s *discordgo.Session, i *discordgo.Interacti
 		}
 		p.Queue().SetLoopMode(nextMode)
 		b.respondText(s, i, fmt.Sprintf("🔁 Loop mode changed to: **%s**", nextMode.String()), true)
+	case "btn_toggle_autoplay":
+		enabled := p.ToggleAutoplay()
+		if enabled {
+			b.respondText(s, i, "📻 Autoplay **enabled**! Recommended tracks will play when the queue ends.", true)
+		} else {
+			b.respondText(s, i, "📻 Autoplay **disabled**.", true)
+		}
 	default:
 		slog.Warn("Unhandled button click", "customID", customID)
 	}

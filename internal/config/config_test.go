@@ -37,6 +37,22 @@ func TestConfigLoadDefaults(t *testing.T) {
 	if cfg.IdleTimeout != 3*time.Minute {
 		t.Errorf("expected default idle timeout 3m, got %v", cfg.IdleTimeout)
 	}
+	if cfg.DefaultAutoplay != false {
+		t.Errorf("expected default autoplay false, got %v", cfg.DefaultAutoplay)
+	}
+}
+
+func TestConfigLoadAutoplay(t *testing.T) {
+	t.Setenv("DISCORD_TOKEN", "tok")
+	t.Setenv("DEFAULT_AUTOPLAY", "true")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !cfg.DefaultAutoplay {
+		t.Errorf("expected autoplay true, got %v", cfg.DefaultAutoplay)
+	}
 }
 
 func TestConfigLoadCustom(t *testing.T) {

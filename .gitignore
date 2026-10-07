@@ -35,3 +35,7 @@ Thumbs.db
 .vscode/
 *.swp
 *~
+
+# Temporary files
+tmp/
+

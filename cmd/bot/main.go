@@ -37,6 +37,7 @@ func main() {
 		"audio_source_mode", cfg.AudioSourceMode,
 		"piped_url", cfg.PipedAPIURL,
 		"default_volume", cfg.DefaultVolume,
+		"default_autoplay", cfg.DefaultAutoplay,
 		"idle_timeout", cfg.IdleTimeout,
 		"ytdlp_cookies_file", cfg.YtDlpCookiesFile,
 		"ytdlp_cookies_from_browser", cfg.YtDlpCookiesFromBrowser,

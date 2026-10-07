@@ -85,6 +85,32 @@ var Commands = []*discordgo.ApplicationCommand{
 		},
 	},
 	{
+		Name:        "autoplay",
+		Description: "Toggle or configure autoplay mode (auto-plays recommended tracks when queue ends)",
+		Options: []*discordgo.ApplicationCommandOption{
+			{
+				Type:        discordgo.ApplicationCommandOptionString,
+				Name:        "mode",
+				Description: "Turn autoplay on or off, or check status",
+				Required:    false,
+				Choices: []*discordgo.ApplicationCommandOptionChoice{
+					{
+						Name:  "On",
+						Value: "on",
+					},
+					{
+						Name:  "Off",
+						Value: "off",
+					},
+					{
+						Name:  "Status",
+						Value: "status",
+					},
+				},
+			},
+		},
+	},
+	{
 		Name:        "help",
 		Description: "Show available music bot commands and usage",
 	},

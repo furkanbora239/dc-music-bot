@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strings"
 	"sync"
 	"time"
 
@@ -28,6 +29,10 @@ type Player struct {
 	idleTimeout   time.Duration
 	idleTimer     *time.Timer
 
+	autoplay      bool
+	playedHistory []string
+	lastTrack     *audio.Track
+
 	voiceCtx     context.Context
 	voiceCancel  context.CancelFunc
 	wakeSignal   chan struct{}
@@ -39,6 +44,21 @@ type Player struct {
 	closed bool
 }
 
+// streamErrorHint returns an extra hint line to append to a user-facing stream
+// resolution error message when the error chain indicates YouTube is
+// bot-blocking the server's IP (yt-dlp's "Sign in to confirm you're not a bot"
+// or Piped's SignInConfirmNotBotException). It returns "" when the error does
+// not match, so the base message format stays unchanged.
+func streamErrorHint(err error) string {
+	if err == nil {
+		return ""
+	}
+	if strings.Contains(strings.ToLower(err.Error()), "sign in to confirm") {
+		return "\n💡 Hint: YouTube is bot-blocking this server's IP. Configure `YTDLP_COOKIES_FILE` (or `YTDLP_COOKIES_FROM_BROWSER`) in `.env` with fresh YouTube cookies and restart the bot."
+	}
+	return ""
+}
+
 // NewPlayer constructs a new guild player and launches its background playback loop.
 func NewPlayer(
 	guildID, voiceChannelID, textChannelID string,
@@ -46,6 +66,7 @@ func NewPlayer(
 	resolver *audio.Resolver,
 	volume int,
 	idleTimeout time.Duration,
+	defaultAutoplay bool,
 	disconnectFn func(guildID string),
 ) *Player {
 	p := &Player{
@@ -57,6 +78,7 @@ func NewPlayer(
 		queue:          NewQueue(),
 		volume:         volume,
 		idleTimeout:    idleTimeout,
+		autoplay:       defaultAutoplay,
 		wakeSignal:     make(chan struct{}, 1),
 		skipSignal:     make(chan struct{}, 1),
 		stopSignal:     make(chan struct{}, 1),
@@ -161,6 +183,89 @@ func (p *Player) Stop() {
 	}
 }
 
+// Autoplay returns true if autoplay is currently enabled.
+func (p *Player) Autoplay() bool {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	return p.autoplay
+}
+
+// SetAutoplay enables or disables autoplay mode.
+func (p *Player) SetAutoplay(enabled bool) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.autoplay = enabled
+}
+
+// ToggleAutoplay toggles autoplay mode and returns the new state.
+func (p *Player) ToggleAutoplay() bool {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.autoplay = !p.autoplay
+	return p.autoplay
+}
+
+func (p *Player) recordHistory(id string) {
+	if id == "" {
+		return
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.playedHistory = append(p.playedHistory, id)
+	if len(p.playedHistory) > 50 {
+		p.playedHistory = p.playedHistory[len(p.playedHistory)-50:]
+	}
+}
+
+func (p *Player) isInHistory(id string) bool {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	for _, h := range p.playedHistory {
+		if h == id {
+			return true
+		}
+	}
+	return false
+}
+
+func (p *Player) fetchAutoplayTrack(seed *audio.Track) *audio.Track {
+	if seed == nil {
+		return nil
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
+	recs, err := p.resolver.GetRecommendations(ctx, seed, 10)
+	if err != nil || len(recs) == 0 {
+		slog.Warn("Failed to fetch autoplay recommendations", "error", err, "seed", seed.Title)
+		return nil
+	}
+
+	// 1. Pick the first recommendation not in recent history
+	for _, rec := range recs {
+		if rec.ID == seed.ID {
+			continue
+		}
+		if !p.isInHistory(rec.ID) {
+			rec.RequestedBy = "Autoplay 📻"
+			p.recordHistory(rec.ID)
+			return rec
+		}
+	}
+
+	// 2. If all recommendations were in history, pick the first non-seed one
+	for _, rec := range recs {
+		if rec.ID != seed.ID {
+			rec.RequestedBy = "Autoplay 📻"
+			p.recordHistory(rec.ID)
+			return rec
+		}
+	}
+
+	return nil
+}
+
+
 // Close destroys the player and terminates voice connection.
 func (p *Player) Close() {
 	p.mu.Lock()
@@ -215,6 +320,37 @@ func (p *Player) playbackLoop() {
 		}
 
 		if nextTrack == nil {
+			var seedTrack *audio.Track
+			if p.nowPlaying != nil {
+				seedTrack = p.nowPlaying
+				p.lastTrack = p.nowPlaying
+			} else {
+				seedTrack = p.lastTrack
+			}
+			canAutoplay := p.autoplay && loopMode == LoopOff && seedTrack != nil
+
+			if canAutoplay {
+				p.mu.Unlock()
+				slog.Info("Queue empty and autoplay enabled, fetching recommendation", "guild", p.guildID, "seed", seedTrack.Title)
+				rec := p.fetchAutoplayTrack(seedTrack)
+
+				p.mu.Lock()
+				if p.closed {
+					p.mu.Unlock()
+					return
+				}
+				if !p.queue.IsEmpty() {
+					nextTrack = p.queue.Pop()
+					if rec != nil {
+						p.queue.Push(rec)
+					}
+				} else if rec != nil {
+					nextTrack = rec
+				}
+			}
+		}
+
+		if nextTrack == nil {
 			p.nowPlaying = nil
 			// Start idle timer
 			if p.idleTimer != nil {
@@ -246,6 +382,13 @@ func (p *Player) playbackLoop() {
 		}
 
 		p.nowPlaying = nextTrack
+		p.lastTrack = nextTrack
+		if nextTrack.ID != "" {
+			p.playedHistory = append(p.playedHistory, nextTrack.ID)
+			if len(p.playedHistory) > 50 {
+				p.playedHistory = p.playedHistory[len(p.playedHistory)-50:]
+			}
+		}
 		targetVoiceCh := p.voiceChannelID
 		volume := p.volume
 		p.mu.Unlock()
@@ -266,7 +409,7 @@ func (p *Player) playbackLoop() {
 
 		if err != nil || preflightURL == "" {
 			slog.Error("Failed to resolve stream URL", "error", err, "track", nextTrack.Title)
-			p.sendTextMessage(fmt.Sprintf("❌ Error resolving stream for **%s**: %v", nextTrack.Title, err))
+			p.sendTextMessage(fmt.Sprintf("❌ Error resolving stream for **%s**: %v%s", nextTrack.Title, err, streamErrorHint(err)))
 			continue
 		}
 
@@ -331,7 +474,7 @@ func (p *Player) ensureVoiceConnection(voiceChID string) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	if p.vc != nil && p.vc.Status == discordgo.VoiceConnectionStatusReady {
+	if p.vc != nil && p.vc.Status == discordgo.VoiceConnectionStatusReady && (voiceChID == "" || voiceChID == p.voiceChannelID) {
 		return nil
 	}
 
@@ -348,7 +491,8 @@ func (p *Player) ensureVoiceConnection(voiceChID string) error {
 
 	p.voiceCtx, p.voiceCancel = context.WithCancel(context.Background())
 
-	vc, err := p.session.ChannelVoiceJoin(p.voiceCtx, p.guildID, voiceChID, false, true)
+	slog.Info("Joining voice channel", "guild", p.guildID, "channel", voiceChID)
+	vc, err := p.session.ChannelVoiceJoin(p.voiceCtx, p.guildID, voiceChID, false, false)
 	if err != nil {
 		p.voiceCancel()
 		p.voiceCancel = nil
@@ -363,6 +507,7 @@ func (p *Player) ensureVoiceConnection(voiceChID string) error {
 	}
 
 	p.vc = vc
+	p.voiceChannelID = voiceChID
 	return nil
 }
 
@@ -378,9 +523,18 @@ func (p *Player) sendTextMessage(msg string) {
 func (p *Player) sendNowPlayingEmbed(track *audio.Track) {
 	p.mu.RLock()
 	chID := p.textChannelID
+	sess := p.session
+	autoplayEnabled := p.autoplay
 	p.mu.RUnlock()
-	if chID == "" || p.session == nil {
+	if chID == "" || sess == nil {
 		return
+	}
+
+	autoplayStr := "Off"
+	autoplayBtnStyle := discordgo.SecondaryButton
+	if autoplayEnabled {
+		autoplayStr = "On"
+		autoplayBtnStyle = discordgo.SuccessButton
 	}
 
 	embed := &discordgo.MessageEmbed{
@@ -400,7 +554,7 @@ func (p *Player) sendNowPlayingEmbed(track *audio.Track) {
 			},
 		},
 		Footer: &discordgo.MessageEmbedFooter{
-			Text: fmt.Sprintf("Requested by %s • Loop: %s", track.RequestedBy, p.queue.LoopMode().String()),
+			Text: fmt.Sprintf("Requested by %s • Loop: %s • Autoplay: %s", track.RequestedBy, p.queue.LoopMode().String(), autoplayStr),
 		},
 	}
 
@@ -433,6 +587,11 @@ func (p *Player) sendNowPlayingEmbed(track *audio.Track) {
 					Label:    "🔁 Loop",
 					Style:    discordgo.SecondaryButton,
 					CustomID: "btn_toggle_loop",
+				},
+				discordgo.Button{
+					Label:    "📻 Autoplay",
+					Style:    autoplayBtnStyle,
+					CustomID: "btn_toggle_autoplay",
 				},
 			},
 		},

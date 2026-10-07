@@ -11,7 +11,10 @@ services:
       # Container-internal path; overrides the host path from .env
       YTDLP_COOKIES_FILE: /app/cookies.txt
     volumes:
-      - ./cookies.txt:/app/cookies.txt:ro
+      # NOTE: must be writable (no ":ro"). yt-dlp dumps its refreshed cookie jar
+      # back into this file on exit; a read-only mount crashes every extraction
+      # at exit with "OSError: Read-only file system".
+      - ./cookies.txt:/app/cookies.txt
     logging:
       driver: "json-file"
       options:

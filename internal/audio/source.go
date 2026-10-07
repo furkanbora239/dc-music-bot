@@ -38,4 +38,6 @@ type Source interface {
 	Search(ctx context.Context, query string) ([]*Track, error)
 	GetTrack(ctx context.Context, idOrURL string) (*Track, error)
 	GetStreamURL(ctx context.Context, track *Track) (string, error)
+	GetRecommendations(ctx context.Context, track *Track, limit int) ([]*Track, error)
 }
+
