@@ -39,6 +39,7 @@ func main() {
 		"default_volume", cfg.DefaultVolume,
 		"default_autoplay", cfg.DefaultAutoplay,
 		"idle_timeout", cfg.IdleTimeout,
+		"empty_channel_timeout", cfg.EmptyChannelTimeout,
 		"ytdlp_cookies_file", cfg.YtDlpCookiesFile,
 		"ytdlp_cookies_from_browser", cfg.YtDlpCookiesFromBrowser,
 	)

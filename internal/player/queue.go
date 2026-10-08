@@ -1,7 +1,6 @@
 package player
 
 import (
-	"errors"
 	"math/rand"
 	"sync"
 	"time"
@@ -53,13 +52,6 @@ func (q *Queue) Push(track *audio.Track) {
 	q.tracks = append(q.tracks, track)
 }
 
-// PushFront adds a track to the front of the queue (e.g. play next).
-func (q *Queue) PushFront(track *audio.Track) {
-	q.mu.Lock()
-	defer q.mu.Unlock()
-	q.tracks = append([]*audio.Track{track}, q.tracks...)
-}
-
 // Pop removes and returns the first track in the queue, or nil if empty.
 func (q *Queue) Pop() *audio.Track {
 	q.mu.Lock()
@@ -98,18 +90,6 @@ func (q *Queue) Size() int {
 // IsEmpty returns true if queue has no tracks.
 func (q *Queue) IsEmpty() bool {
 	return q.Size() == 0
-}
-
-// Remove removes the track at the specified 0-based index.
-func (q *Queue) Remove(index int) (*audio.Track, error) {
-	q.mu.Lock()
-	defer q.mu.Unlock()
-	if index < 0 || index >= len(q.tracks) {
-		return nil, errors.New("index out of bounds")
-	}
-	t := q.tracks[index]
-	q.tracks = append(q.tracks[:index], q.tracks[index+1:]...)
-	return t, nil
 }
 
 // Shuffle randomly reorders the queue.

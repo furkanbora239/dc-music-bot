@@ -28,6 +28,7 @@ type Player struct {
 	volume        int
 	idleTimeout   time.Duration
 	idleTimer     *time.Timer
+	emptyTimer    *time.Timer
 
 	autoplay      bool
 	playedHistory []string
@@ -127,6 +128,13 @@ func (p *Player) SetTextChannel(chID string) {
 	p.textChannelID = chID
 }
 
+// VoiceChannelID returns the current voice channel ID of the player.
+func (p *Player) VoiceChannelID() string {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	return p.voiceChannelID
+}
+
 // SetVoiceChannel updates target voice channel ID.
 func (p *Player) SetVoiceChannel(chID string) {
 	p.mu.Lock()
@@ -134,18 +142,52 @@ func (p *Player) SetVoiceChannel(chID string) {
 	p.voiceChannelID = chID
 }
 
-// Enqueue adds a track to the queue and awakens the loop if idle.
-func (p *Player) Enqueue(track *audio.Track) {
-	p.queue.Push(track)
-	select {
-	case p.wakeSignal <- struct{}{}:
-	default:
+// StartEmptyTimer starts a countdown timer to disconnect if the voice channel is empty.
+// If the timer is already running, this is a no-op so the existing countdown continues.
+func (p *Player) StartEmptyTimer(timeout time.Duration) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	if p.closed || timeout <= 0 {
+		return
+	}
+
+	if p.emptyTimer != nil {
+		// Timer already running, let it continue
+		return
+	}
+
+	slog.Info("Voice channel is empty of users, starting empty channel timer", "guild", p.guildID, "timeout", timeout)
+	p.emptyTimer = time.AfterFunc(timeout, func() {
+		p.mu.Lock()
+		if p.closed {
+			p.mu.Unlock()
+			return
+		}
+		p.emptyTimer = nil
+		p.mu.Unlock()
+
+		slog.Info("Empty voice channel timeout reached, disconnecting", "guild", p.guildID)
+		p.sendTextMessage("⏱️ Disconnected from voice: channel was empty.")
+		p.Close()
+	})
+}
+
+// CancelEmptyTimer cancels any active empty channel timer.
+func (p *Player) CancelEmptyTimer() {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	if p.emptyTimer != nil {
+		slog.Info("Voice channel is no longer empty, cancelled empty timer", "guild", p.guildID)
+		p.emptyTimer.Stop()
+		p.emptyTimer = nil
 	}
 }
 
-// EnqueueFront adds a track to the front of the queue.
-func (p *Player) EnqueueFront(track *audio.Track) {
-	p.queue.PushFront(track)
+// Enqueue adds a track to the queue and awakens the loop if idle.
+func (p *Player) Enqueue(track *audio.Track) {
+	p.queue.Push(track)
 	select {
 	case p.wakeSignal <- struct{}{}:
 	default:
@@ -274,12 +316,18 @@ func (p *Player) Close() {
 		return
 	}
 	p.closed = true
-	p.queue.Clear()
+	if p.queue != nil {
+		p.queue.Clear()
+	}
 	if p.streamSession != nil {
 		p.streamSession.Stop()
 	}
 	if p.idleTimer != nil {
 		p.idleTimer.Stop()
+	}
+	if p.emptyTimer != nil {
+		p.emptyTimer.Stop()
+		p.emptyTimer = nil
 	}
 	if p.voiceCancel != nil {
 		p.voiceCancel()
@@ -400,14 +448,12 @@ func (p *Player) playbackLoop() {
 			continue
 		}
 
-		// Preflight: ensure the track can be resolved to a stream URL before
-		// committing to playback. The range reader will re-resolve (fresh) on
-		// demand during streaming via ResolveStreamURLFresh.
+		// Resolve the direct stream URL for playback.
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-		preflightURL, err := p.resolver.ResolveStreamURL(ctx, nextTrack)
+		streamURL, err := p.resolver.ResolveStreamURL(ctx, nextTrack)
 		cancel()
 
-		if err != nil || preflightURL == "" {
+		if err != nil || streamURL == "" {
 			slog.Error("Failed to resolve stream URL", "error", err, "track", nextTrack.Title)
 			p.sendTextMessage(fmt.Sprintf("❌ Error resolving stream for **%s**: %v%s", nextTrack.Title, err, streamErrorHint(err)))
 			continue
@@ -415,21 +461,12 @@ func (p *Player) playbackLoop() {
 
 		slog.Info("Audio stream URL acquired, initializing playback", "track", nextTrack.Title, "volume", volume)
 
-		// Start streaming. The resolver closure force-refreshes the track's
-		// stream URL (bypassing its cache) on every fresh URL request, so the
-		// range reader can recover from mid-stream 403s by re-resolving at the
-		// same byte offset. Passing a nil context lets PlayStream manage its own
-		// cancellable context, which is cancelled by StreamSession.Stop on
-		// skip/stop so no orphaned HTTP requests remain.
-		streamSess, err := audio.PlayStream(nil, func(ctx context.Context) (string, error) {
-			url, err := p.resolver.ResolveStreamURLFresh(ctx, nextTrack)
-			if err != nil {
-				return "", err
+		// Start streaming. Directly streams the resolved stream URL via FFmpeg with native auto-reconnect.
+		streamSess, err := audio.PlayStream(context.Background(), func(ctx context.Context) (string, error) {
+			if nextTrack.StreamURL != "" {
+				return nextTrack.StreamURL, nil
 			}
-			if url == "" {
-				return "", fmt.Errorf("resolver returned empty stream URL for track %q", nextTrack.Title)
-			}
-			return url, nil
+			return p.resolver.ResolveStreamURL(ctx, nextTrack)
 		}, p.vc, volume)
 		if err != nil {
 			slog.Error("Failed to play audio stream", "error", err, "track", nextTrack.Title)

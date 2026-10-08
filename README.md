@@ -115,7 +115,8 @@ make run
 | `AUDIO_SOURCE_MODE` | `hybrid` | `hybrid` (Piped + yt-dlp fallback), `piped`, veya `ytdlp` |
 | `PIPED_API_URL` | `https://api.piped.private.coffee` | Kullanılacak Piped API instance adresi |
 | `DEFAULT_VOLUME` | `100` | Başlangıç ses seviyesi (1-100) |
-| `IDLE_TIMEOUT` | `3m` | Kanalda kimse kalmadığında veya şarkı bittiğinde çıkış süresi |
+| `IDLE_TIMEOUT` | `3m` | Şarkı bittiğinde boşta bekleme ve kanaldan çıkış süresi |
+| `EMPTY_CHANNEL_TIMEOUT` | `1m` | Ses kanalında kullanıcı kalmadığında kanaldan çıkış süresi (`0s` = devre dışı) |
 | `DEFAULT_AUTOPLAY` | `false` | Kuyruk bittiğinde otomatik önerilen şarkılarla devam etme modu (`true` veya `false`) |
 | `LOG_LEVEL` | `info` | Loglama seviyesi (`info` veya `debug`) |
 | `YTDLP_COOKIES_FILE` | *Boş* | yt-dlp için Netscape formatlı `cookies.txt` yolu (bot-duvarı için opsiyonel kurtarma yolu; boş = misafir mod). Docker: `docker-compose.yml` içindeki cookies volume'u aktiftir; **yazılabilir** bırakın (`:ro` eklemeyin) — yt-dlp çıkışta güncellenmiş cookie'leri dosyaya geri yazar, read-only mount her extraction'ı çökertir |

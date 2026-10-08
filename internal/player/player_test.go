@@ -3,7 +3,9 @@ package player
 import (
 	"errors"
 	"strings"
+	"sync/atomic"
 	"testing"
+	"time"
 )
 
 // TestStreamErrorHint verifies that the user-facing bot-wall hint is only
@@ -99,6 +101,56 @@ func TestPlayerHistory(t *testing.T) {
 	p.mu.RUnlock()
 	if histLen > 50 {
 		t.Fatalf("expected max 50 items in history, got %d", histLen)
+	}
+}
+
+func TestEmptyTimer_Cancel(t *testing.T) {
+	p := &Player{
+		guildID: "g1",
+	}
+
+	p.StartEmptyTimer(1 * time.Second)
+	p.mu.RLock()
+	hasTimer := p.emptyTimer != nil
+	p.mu.RUnlock()
+	if !hasTimer {
+		t.Fatal("expected emptyTimer to be active")
+	}
+
+	// Calling StartEmptyTimer again shouldn't crash or replace
+	p.StartEmptyTimer(1 * time.Second)
+
+	p.CancelEmptyTimer()
+	p.mu.RLock()
+	hasTimer = p.emptyTimer != nil
+	p.mu.RUnlock()
+	if hasTimer {
+		t.Fatal("expected emptyTimer to be nil after Cancel")
+	}
+}
+
+func TestEmptyTimer_Expires(t *testing.T) {
+	var disconnected atomic.Bool
+	p := &Player{
+		guildID: "g1",
+		disconnectFn: func(g string) {
+			disconnected.Store(true)
+		},
+	}
+
+	p.StartEmptyTimer(20 * time.Millisecond)
+
+	time.Sleep(50 * time.Millisecond)
+
+	p.mu.RLock()
+	isClosed := p.closed
+	p.mu.RUnlock()
+
+	if !isClosed {
+		t.Fatal("expected player to be closed after empty timer expired")
+	}
+	if !disconnected.Load() {
+		t.Fatal("expected disconnectFn to be called after empty timer expired")
 	}
 }
 

@@ -25,4 +25,4 @@ docker-down:
 	docker compose down
 
 clean:
-	rm -rf $(BUILD_DIR)
+	rm -rf $(BUILD_DIR) *.test *.out

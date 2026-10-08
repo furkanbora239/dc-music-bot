@@ -19,9 +19,10 @@ type Config struct {
 	AudioSourceMode string
 	PipedAPIURL     string
 	DefaultVolume   int
-	IdleTimeout     time.Duration
-	LogLevel        string
-	DefaultAutoplay bool
+	IdleTimeout         time.Duration
+	EmptyChannelTimeout time.Duration
+	LogLevel            string
+	DefaultAutoplay     bool
 
 	// Optional yt-dlp cookie rescue options for YouTube's "Sign in to confirm
 	// you're not a bot" wall on some egress IPs. Both are OFF (empty) by
@@ -73,6 +74,13 @@ func Load() (*Config, error) {
 		}
 	}
 
+	emptyChannelTimeout := 1 * time.Minute
+	if timeoutStr := os.Getenv("EMPTY_CHANNEL_TIMEOUT"); timeoutStr != "" {
+		if d, err := time.ParseDuration(timeoutStr); err == nil && d >= 0 {
+			emptyChannelTimeout = d
+		}
+	}
+
 	logLevel := strings.ToLower(strings.TrimSpace(os.Getenv("LOG_LEVEL")))
 	if logLevel == "" {
 		logLevel = "info"
@@ -119,6 +127,7 @@ func Load() (*Config, error) {
 		PipedAPIURL:             pipedURL,
 		DefaultVolume:           volume,
 		IdleTimeout:             idleTimeout,
+		EmptyChannelTimeout:     emptyChannelTimeout,
 		LogLevel:                logLevel,
 		DefaultAutoplay:         defaultAutoplay,
 		YtDlpCookiesFile:        cookiesFile,

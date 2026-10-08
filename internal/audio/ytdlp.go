@@ -40,7 +40,8 @@ func NewYtDlpSource(binaryPath, cookiesFile, cookiesFromBrowser string) *YtDlpSo
 // exactly base followed by target, so guest-mode args are identical to before.
 // The cookies file always takes precedence over the browser option.
 func (y *YtDlpSource) buildArgs(base []string, target string) []string {
-	args := make([]string, 0, len(base)+3)
+	args := make([]string, 0, len(base)+5)
+	args = append(args, "--source-address", "0.0.0.0")
 	args = append(args, base...)
 	switch {
 	case y.cookiesFile != "":
@@ -50,10 +51,6 @@ func (y *YtDlpSource) buildArgs(base []string, target string) []string {
 	}
 	args = append(args, target)
 	return args
-}
-
-func (y *YtDlpSource) Name() string {
-	return "yt-dlp"
 }
 
 type ytdlpThumbnail struct {
@@ -82,14 +79,14 @@ func (y *YtDlpSource) Search(ctx context.Context, query string) ([]*Track, error
 	isPlaylist := strings.Contains(query, "list=") || strings.Contains(query, "playlist")
 
 	base := []string{
-		"--js-runtimes", "node",
 		"--dump-json",
+		"--flat-playlist",
 		"--skip-download",
 		"--no-warnings",
 	}
 
 	if isPlaylist {
-		base = append(base, "--flat-playlist", "--playlist-end", "100")
+		base = append(base, "--playlist-end", "100")
 	} else {
 		base = append(base, "--no-playlist")
 	}
@@ -117,12 +114,24 @@ func (y *YtDlpSource) Search(ctx context.Context, query string) ([]*Track, error
 		}
 		webURL := item.WebpageURL
 		if webURL == "" {
-			webURL = fmt.Sprintf("https://www.youtube.com/watch?v=%s", item.ID)
+			if strings.HasPrefix(item.URL, "http://") || strings.HasPrefix(item.URL, "https://") {
+				if !strings.Contains(item.URL, "googlevideo.com") {
+					webURL = item.URL
+				}
+			}
+			if webURL == "" && item.ID != "" {
+				webURL = fmt.Sprintf("https://www.youtube.com/watch?v=%s", item.ID)
+			}
 		}
 
 		thumb := item.Thumbnail
 		if thumb == "" && len(item.Thumbnails) > 0 {
 			thumb = item.Thumbnails[len(item.Thumbnails)-1].URL
+		}
+
+		var directURL string
+		if strings.Contains(item.URL, "googlevideo.com") {
+			directURL = item.URL
 		}
 
 		tracks = append(tracks, &Track{
@@ -132,7 +141,7 @@ func (y *YtDlpSource) Search(ctx context.Context, query string) ([]*Track, error
 			Duration:   time.Duration(item.Duration * float64(time.Second)),
 			WebpageURL: webURL,
 			Thumbnail:  thumb,
-			StreamURL:  item.URL,
+			StreamURL:  directURL,
 		})
 	}
 
@@ -141,23 +150,6 @@ func (y *YtDlpSource) Search(ctx context.Context, query string) ([]*Track, error
 	}
 
 	return tracks, nil
-}
-
-// GetTrack retrieves metadata for a track or URL using yt-dlp.
-func (y *YtDlpSource) GetTrack(ctx context.Context, idOrURL string) (*Track, error) {
-	target := idOrURL
-	if !strings.HasPrefix(target, "http://") && !strings.HasPrefix(target, "https://") {
-		target = fmt.Sprintf("https://www.youtube.com/watch?v=%s", idOrURL)
-	}
-
-	tracks, err := y.Search(ctx, target)
-	if err != nil {
-		return nil, err
-	}
-	if len(tracks) == 0 {
-		return nil, errors.New("track not found")
-	}
-	return tracks[0], nil
 }
 
 // GetStreamURL resolves the direct audio stream URL using yt-dlp -g -f ba/b.
@@ -172,7 +164,6 @@ func (y *YtDlpSource) GetStreamURL(ctx context.Context, track *Track) (string, e
 	}
 
 	base := []string{
-		"--js-runtimes", "node",
 		"-g",
 		"-f", "ba/b",
 		"--no-playlist",
@@ -230,7 +221,6 @@ func (y *YtDlpSource) GetRecommendations(ctx context.Context, seed *Track, limit
 	var lastErr error
 	for _, target := range targets {
 		base := []string{
-			"--js-runtimes", "node",
 			"--dump-json",
 			"--flat-playlist",
 			"--playlist-end", strconv.Itoa(limit + 2),

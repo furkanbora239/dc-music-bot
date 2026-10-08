@@ -10,7 +10,7 @@ import (
 
 var (
 	// ErrVoiceConnClosed is returned when the voice connection is closed while streaming.
-	ErrVoiceConnClosed = errors.New("Voice connection closed")
+	ErrVoiceConnClosed = errors.New("voice connection closed")
 )
 
 // StreamingSession provides an easy way to directly transmit opus audio
@@ -184,24 +184,6 @@ func (s *StreamingSession) SetPaused(paused bool) {
 
 	s.paused = paused
 	s.Unlock()
-}
-
-// PlaybackPosition returns the the duration of content we have transmitted so far
-func (s *StreamingSession) PlaybackPosition() time.Duration {
-	s.Lock()
-	dur := time.Duration(s.framesSent) * s.source.FrameDuration()
-	s.Unlock()
-	return dur
-}
-
-// Finished returns wether the stream finished or not, and any error that caused it to stop
-func (s *StreamingSession) Finished() (bool, error) {
-	s.Lock()
-	err := s.err
-	fin := s.finished
-	s.Unlock()
-
-	return fin, err
 }
 
 // Paused returns wether the sream is paused or not

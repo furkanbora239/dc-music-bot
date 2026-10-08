@@ -34,9 +34,7 @@ func (t *Track) FormatDuration() string {
 
 // Source defines the contract for audio metadata and stream extractors.
 type Source interface {
-	Name() string
 	Search(ctx context.Context, query string) ([]*Track, error)
-	GetTrack(ctx context.Context, idOrURL string) (*Track, error)
 	GetStreamURL(ctx context.Context, track *Track) (string, error)
 	GetRecommendations(ctx context.Context, track *Track, limit int) ([]*Track, error)
 }

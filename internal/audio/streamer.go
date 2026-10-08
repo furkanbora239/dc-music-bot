@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"sync"
-	"time"
 
 	"github.com/bwmarrin/discordgo"
 	dca "github.com/user/dc-music-bot/internal/dca"
@@ -22,12 +21,13 @@ type StreamSession struct {
 	closed          bool
 }
 
+// URLResolver returns a direct audio stream URL.
+type URLResolver func(ctx context.Context) (string, error)
+
 // PlayStream starts encoding and streaming an audio URL directly to the given
-// VoiceConnection. The streamURL is resolved lazily and refreshed on demand by
-// resolver, which is wrapped in an HTTP range-chunked reader (see NewRangeReader)
-// so that googlevideo-style URLs (which reject full GETs) can be streamed
-// reliably. All StreamSession semantics (Pause/Resume/IsPaused/Position/Stop/
-// Done/Wait) and vc.Speaking(true/false) behavior are preserved.
+// VoiceConnection. The streamURL is resolved by the resolver function and streamed
+// via FFmpeg with native auto-reconnect options. All StreamSession semantics
+// (Pause/Resume/IsPaused/Stop/Done/Wait) and vc.Speaking(true/false) behavior are preserved.
 func PlayStream(ctx context.Context, resolver URLResolver, vc *discordgo.VoiceConnection, volume int) (*StreamSession, error) {
 	if vc == nil {
 		return nil, errors.New("voice connection is nil")
@@ -58,12 +58,22 @@ func PlayStream(ctx context.Context, resolver URLResolver, vc *discordgo.VoiceCo
 	opts.Application = dca.AudioApplicationAudio
 	opts.BufferedFrames = 100
 
-	// streamCtx is cancelled on Stop so the range reader aborts promptly when
-	// ffmpeg is killed (broken downstream pipe) without leaking HTTP requests.
-	streamCtx, cancel := context.WithCancel(ctx)
-	reader := NewRangeReader(streamCtx, resolver, RangeConfig{})
+	if resolver == nil {
+		return nil, errors.New("resolver is nil")
+	}
 
-	encodingSession, err := dca.EncodeMem(reader, &opts)
+	streamCtx, cancel := context.WithCancel(ctx)
+	streamURL, err := resolver(streamCtx)
+	if err != nil {
+		cancel()
+		return nil, fmt.Errorf("failed to resolve stream URL: %w", err)
+	}
+	if streamURL == "" {
+		cancel()
+		return nil, errors.New("resolved stream URL is empty")
+	}
+
+	encodingSession, err := dca.EncodeFile(streamURL, &opts)
 	if err != nil {
 		cancel()
 		return nil, fmt.Errorf("failed to start ffmpeg encoding: %w", err)
@@ -132,16 +142,6 @@ func (s *StreamSession) IsPaused() bool {
 		return s.streamSession.Paused()
 	}
 	return false
-}
-
-// Position returns current playback duration.
-func (s *StreamSession) Position() time.Duration {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.streamSession != nil {
-		return s.streamSession.PlaybackPosition()
-	}
-	return 0
 }
 
 // Stop cleanly terminates the encoder and cleans up processes.

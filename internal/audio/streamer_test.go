@@ -57,20 +57,14 @@ func generateTestAudio(t *testing.T) string {
 func TestEncoderProducesOpusFrames(t *testing.T) {
 	path := generateTestAudio(t)
 
-	f, err := os.Open(path)
-	if err != nil {
-		t.Fatalf("open test audio: %v", err)
-	}
-	defer f.Close()
-
 	opts := *dca.StdEncodeOptions
 	opts.RawOutput = true
 	opts.Bitrate = 96
 	opts.Application = dca.AudioApplicationAudio
 
-	enc, err := dca.EncodeMem(f, &opts)
+	enc, err := dca.EncodeFile(path, &opts)
 	if err != nil {
-		t.Fatalf("EncodeMem: %v", err)
+		t.Fatalf("EncodeFile: %v", err)
 	}
 	defer enc.Cleanup()
 

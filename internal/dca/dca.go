@@ -15,9 +15,6 @@
 package dca
 
 import (
-	"encoding/binary"
-	"errors"
-	"io"
 	"log"
 	"time"
 )
@@ -52,36 +49,4 @@ func logln(s ...interface{}) {
 	}
 
 	log.Println(s...)
-}
-
-// logf logs to assigned logger or standard logger
-func logf(format string, a ...interface{}) {
-	if Logger != nil {
-		Logger.Printf(format, a...)
-		return
-	}
-	log.Printf(format, a...)
-}
-
-var (
-	// ErrNegativeFrameSize is returned when a frame size is negative, possibly corrupted.
-	ErrNegativeFrameSize = errors.New("Frame size is negative, possibly corrupted.")
-)
-
-// DecodeFrame decodes a dca frame from an io.Reader and returns the raw opus
-// audio ready to be sent to discord. It is retained for API completeness.
-func DecodeFrame(r io.Reader) (frame []byte, err error) {
-	var size int16
-	err = binary.Read(r, binary.LittleEndian, &size)
-	if err != nil {
-		return
-	}
-
-	if size < 0 {
-		return nil, ErrNegativeFrameSize
-	}
-
-	frame = make([]byte, size)
-	err = binary.Read(r, binary.LittleEndian, &frame)
-	return
 }

@@ -3,6 +3,7 @@ package bot
 import (
 	"fmt"
 	"log/slog"
+	"sync"
 
 	"github.com/bwmarrin/discordgo"
 	"github.com/user/dc-music-bot/internal/audio"
@@ -16,6 +17,7 @@ type Bot struct {
 	session  *discordgo.Session
 	resolver *audio.Resolver
 	manager  *player.Manager
+	botCache sync.Map
 }
 
 // NewBot constructs a new Bot instance.
@@ -26,7 +28,10 @@ func NewBot(cfg *config.Config) (*Bot, error) {
 	}
 
 	session.Identify.Intents = discordgo.IntentsGuilds | discordgo.IntentsGuildVoiceStates
-	session.LogLevel = discordgo.LogInformational
+	session.LogLevel = discordgo.LogWarning
+	if cfg.LogLevel == "debug" {
+		session.LogLevel = discordgo.LogDebug
+	}
 
 	resolver := audio.NewResolver(cfg.AudioSourceMode, cfg.PipedAPIURL, cfg.YtDlpCookiesFile, cfg.YtDlpCookiesFromBrowser)
 	manager := player.NewManager()
@@ -39,6 +44,7 @@ func NewBot(cfg *config.Config) (*Bot, error) {
 	}
 
 	session.AddHandler(b.handleInteraction)
+	session.AddHandler(b.handleVoiceStateUpdate)
 
 	return b, nil
 }

@@ -15,27 +15,22 @@ func TestQueueOperations(t *testing.T) {
 
 	t1 := &audio.Track{ID: "1", Title: "Song 1", Duration: 3 * time.Minute}
 	t2 := &audio.Track{ID: "2", Title: "Song 2", Duration: 4 * time.Minute}
-	t3 := &audio.Track{ID: "3", Title: "Song 3", Duration: 2 * time.Minute}
 
 	q.Push(t1)
 	q.Push(t2)
-	q.PushFront(t3)
 
-	if q.Size() != 3 {
-		t.Fatalf("expected queue size 3, got %d", q.Size())
+	if q.Size() != 2 {
+		t.Fatalf("expected queue size 2, got %d", q.Size())
+	}
+
+	list := q.List()
+	if len(list) != 2 || list[0].ID != "1" || list[1].ID != "2" {
+		t.Fatalf("unexpected queue list contents: %v", list)
 	}
 
 	popped := q.Pop()
-	if popped.ID != "3" {
-		t.Fatalf("expected front track '3', got '%s'", popped.ID)
-	}
-
-	removed, err := q.Remove(1)
-	if err != nil {
-		t.Fatalf("unexpected remove error: %v", err)
-	}
-	if removed.ID != "2" {
-		t.Fatalf("expected removed track '2', got '%s'", removed.ID)
+	if popped == nil || popped.ID != "1" {
+		t.Fatalf("expected front track '1', got '%v'", popped)
 	}
 
 	if q.Size() != 1 {

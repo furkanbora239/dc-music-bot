@@ -12,14 +12,13 @@ import (
 // command line.
 var (
 	searchBase = []string{
-		"--js-runtimes", "node",
 		"--dump-json",
+		"--flat-playlist",
 		"--no-playlist",
 		"--skip-download",
 		"--no-warnings",
 	}
 	streamBase = []string{
-		"--js-runtimes", "node",
 		"-g",
 		"-f", "ba/b",
 		"--no-playlist",
@@ -32,8 +31,9 @@ func TestBuildArgsGuestIdenticalToLegacy(t *testing.T) {
 
 	got := y.buildArgs(searchBase, "ytsearch1:test")
 	want := []string{
-		"--js-runtimes", "node",
+		"--source-address", "0.0.0.0",
 		"--dump-json",
+		"--flat-playlist",
 		"--no-playlist",
 		"--skip-download",
 		"--no-warnings",
@@ -45,7 +45,7 @@ func TestBuildArgsGuestIdenticalToLegacy(t *testing.T) {
 
 	got = y.buildArgs(streamBase, "https://youtu.be/dQw4w9WgXcQ")
 	want = []string{
-		"--js-runtimes", "node",
+		"--source-address", "0.0.0.0",
 		"-g",
 		"-f", "ba/b",
 		"--no-playlist",
@@ -62,7 +62,7 @@ func TestBuildArgsCookiesFile(t *testing.T) {
 
 	got := y.buildArgs(streamBase, "target")
 	want := []string{
-		"--js-runtimes", "node",
+		"--source-address", "0.0.0.0",
 		"-g",
 		"-f", "ba/b",
 		"--no-playlist",
@@ -80,8 +80,9 @@ func TestBuildArgsCookiesFromBrowser(t *testing.T) {
 
 	got := y.buildArgs(searchBase, "target")
 	want := []string{
-		"--js-runtimes", "node",
+		"--source-address", "0.0.0.0",
 		"--dump-json",
+		"--flat-playlist",
 		"--no-playlist",
 		"--skip-download",
 		"--no-warnings",
@@ -100,7 +101,7 @@ func TestBuildArgsBothSetFileWins(t *testing.T) {
 
 	got := y.buildArgs(streamBase, "target")
 	want := []string{
-		"--js-runtimes", "node",
+		"--source-address", "0.0.0.0",
 		"-g",
 		"-f", "ba/b",
 		"--no-playlist",

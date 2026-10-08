@@ -91,6 +91,7 @@ func (b *Bot) handlePlay(s *discordgo.Session, i *discordgo.InteractionCreate) {
 		b.cfg.IdleTimeout,
 		b.cfg.DefaultAutoplay,
 	)
+	p.CancelEmptyTimer()
 
 	currentPlaying := p.NowPlaying()
 	for _, t := range tracks {
@@ -439,3 +440,94 @@ func (b *Bot) editDeferredResponse(s *discordgo.Session, i *discordgo.Interactio
 		Content: &content,
 	})
 }
+
+func (b *Bot) handleVoiceStateUpdate(s *discordgo.Session, vsu *discordgo.VoiceStateUpdate) {
+	if vsu == nil || vsu.GuildID == "" {
+		return
+	}
+
+	p := b.manager.Get(vsu.GuildID)
+	if p == nil {
+		return
+	}
+
+	botChID := p.VoiceChannelID()
+	if botChID == "" {
+		return
+	}
+
+	// 1. If this voice state update is for the bot itself
+	if s.State.User != nil && vsu.UserID == s.State.User.ID {
+		if vsu.ChannelID == "" {
+			// Bot was disconnected from voice
+			slog.Info("Bot was disconnected from voice channel", "guild", vsu.GuildID)
+			p.Close()
+			return
+		}
+		if vsu.ChannelID != botChID {
+			// Bot was moved to another channel
+			slog.Info("Bot moved to new voice channel", "guild", vsu.GuildID, "oldChannel", botChID, "newChannel", vsu.ChannelID)
+			p.SetVoiceChannel(vsu.ChannelID)
+			botChID = vsu.ChannelID
+		}
+	}
+
+	// 2. Count active human users in the bot's current voice channel
+	nonBotUsers := b.countNonBotUsersInChannel(vsu.GuildID, botChID)
+	if nonBotUsers == 0 {
+		p.StartEmptyTimer(b.cfg.EmptyChannelTimeout)
+	} else if nonBotUsers > 0 {
+		p.CancelEmptyTimer()
+	}
+}
+
+func (b *Bot) countNonBotUsersInChannel(guildID, channelID string) int {
+	g, err := b.session.State.Guild(guildID)
+	if err != nil || g == nil {
+		g, err = b.session.Guild(guildID)
+		if err != nil || g == nil {
+			return -1
+		}
+	}
+
+	count := 0
+	for _, vs := range g.VoiceStates {
+		if vs.ChannelID != channelID {
+			continue
+		}
+		if b.session.State.User != nil && vs.UserID == b.session.State.User.ID {
+			continue
+		}
+		if vs.Member != nil && vs.Member.User != nil {
+			b.botCache.Store(vs.UserID, vs.Member.User.Bot)
+			if vs.Member.User.Bot {
+				continue
+			}
+		} else if b.isUserBot(guildID, vs.UserID) {
+			continue
+		}
+		count++
+	}
+	return count
+}
+
+func (b *Bot) isUserBot(guildID, userID string) bool {
+	if val, ok := b.botCache.Load(userID); ok {
+		return val.(bool)
+	}
+
+	m, err := b.session.State.Member(guildID, userID)
+	if err == nil && m.User != nil {
+		b.botCache.Store(userID, m.User.Bot)
+		return m.User.Bot
+	}
+
+	m, err = b.session.GuildMember(guildID, userID)
+	if err == nil && m.User != nil {
+		b.botCache.Store(userID, m.User.Bot)
+		return m.User.Bot
+	}
+
+	return false
+}
+

@@ -35,7 +35,7 @@ var (
 
 var (
 	// ErrBadFrame is returned when a frame is malformed.
-	ErrBadFrame = errors.New("Bad Frame")
+	ErrBadFrame = errors.New("bad frame")
 )
 
 // EncodeOptions is a set of options for encoding dca
@@ -85,13 +85,20 @@ func EncodeArgs(inFile string, o *EncodeOptions) []string {
 		vbrStr = "off"
 	}
 
-	args := []string{
-		"-stats",
+	var args []string
+	if strings.HasPrefix(inFile, "http://") || strings.HasPrefix(inFile, "https://") {
+		args = append(args,
+			"-reconnect", "1",
+			"-reconnect_at_eof", "1",
+			"-reconnect_streamed", "1",
+			"-reconnect_delay_max", "5",
+		)
+	}
+
+	args = append(args,
+		"-nostats",
+		"-loglevel", "error",
 		"-i", inFile,
-		"-reconnect", "1",
-		"-reconnect_at_eof", "1",
-		"-reconnect_streamed", "1",
-		"-reconnect_delay_max", "2",
 		"-map", "0:a",
 		"-acodec", "libopus",
 		"-f", "ogg",
@@ -103,9 +110,9 @@ func EncodeArgs(inFile string, o *EncodeOptions) []string {
 		"-application", string(o.Application),
 		"-frame_duration", strconv.Itoa(o.FrameDuration),
 		"-packet_loss", strconv.Itoa(o.PacketLoss),
-		"-threads", strconv.Itoa(o.Threads),
+		"-threads", "1",
 		"-ss", strconv.Itoa(o.StartTime),
-	}
+	)
 
 	af := o.AudioFilter
 	if o.Volume != 256 {
@@ -127,27 +134,27 @@ func EncodeArgs(inFile string, o *EncodeOptions) []string {
 // Validate returns an error if the options are not correct
 func (opts *EncodeOptions) Validate() error {
 	if opts.Volume < 0 || opts.Volume > 512 {
-		return errors.New("Out of bounds volume (0-512)")
+		return errors.New("out of bounds volume (0-512)")
 	}
 
 	if opts.FrameDuration != 20 && opts.FrameDuration != 40 && opts.FrameDuration != 60 {
-		return errors.New("Invalid FrameDuration")
+		return errors.New("invalid FrameDuration")
 	}
 
 	if opts.PacketLoss < 0 || opts.PacketLoss > 100 {
-		return errors.New("Invalid packet loss percentage")
+		return errors.New("invalid packet loss percentage")
 	}
 
 	if opts.Application != AudioApplicationAudio && opts.Application != AudioApplicationVoip && opts.Application != AudioApplicationLowDelay {
-		return errors.New("Invalid audio application")
+		return errors.New("invalid audio application")
 	}
 
 	if opts.CompressionLevel < 0 || opts.CompressionLevel > 10 {
-		return errors.New("Compression level out of bounds (0-10)")
+		return errors.New("compression level out of bounds (0-10)")
 	}
 
 	if opts.Threads < 0 {
-		return errors.New("Number of threads can't be less than 0")
+		return errors.New("number of threads can't be less than 0")
 	}
 
 	return nil
@@ -161,11 +168,12 @@ var StdEncodeOptions = &EncodeOptions{
 	FrameDuration:    20,
 	Bitrate:          64,
 	Application:      AudioApplicationAudio,
-	CompressionLevel: 10,
+	CompressionLevel: 5,
 	PacketLoss:       1,
 	BufferedFrames:   100, // At 20ms frames that's 2s
 	VBR:              true,
 	StartTime:        0,
+	Threads:          1,
 }
 
 // EncodeStats is transcode stats reported by ffmpeg
@@ -201,22 +209,6 @@ type EncodeSession struct {
 	// buffer that stores unread bytes (not full frames)
 	// used to implement io.Reader
 	buf bytes.Buffer
-}
-
-// EncodeMem encodes data from memory
-func EncodeMem(r io.Reader, options *EncodeOptions) (session *EncodeSession, err error) {
-	err = options.Validate()
-	if err != nil {
-		return
-	}
-
-	session = &EncodeSession{
-		options:      options,
-		pipeReader:   r,
-		frameChannel: make(chan *Frame, options.BufferedFrames),
-	}
-	go session.run()
-	return
 }
 
 // EncodeFile encodes the file/url/other in path
@@ -527,7 +519,8 @@ func (e *EncodeSession) handleStderrLine(line string) {
 }
 
 func (e *EncodeSession) readStdout(stdout io.ReadCloser) {
-	decoder := ogg.NewPacketDecoder(ogg.NewDecoder(stdout))
+	bufReader := bufio.NewReaderSize(stdout, 32*1024)
+	decoder := ogg.NewPacketDecoder(ogg.NewDecoder(bufReader))
 
 	// the first 2 packets are ogg opus metadata
 	skipPackets := 2
@@ -580,7 +573,7 @@ func (e *EncodeSession) Stop() error {
 	e.Lock()
 	defer e.Unlock()
 	if !e.running || e.process == nil {
-		return errors.New("Not running")
+		return errors.New("not running")
 	}
 
 	err := e.process.Kill()
@@ -656,7 +649,7 @@ func (e *EncodeSession) Truncate() {
 func (e *EncodeSession) Cleanup() {
 	e.Stop()
 
-	for _ = range e.frameChannel {
+	for range e.frameChannel {
 		// empty till closed
 		// Cats can be right-pawed or left-pawed.
 	}

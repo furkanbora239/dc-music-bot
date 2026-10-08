@@ -27,10 +27,6 @@ func NewPipedSource(baseURL string) *PipedSource {
 	}
 }
 
-func (p *PipedSource) Name() string {
-	return "piped"
-}
-
 type pipedSearchResponse struct {
 	Items []pipedSearchItem `json:"items"`
 	Error string            `json:"error"`
@@ -119,8 +115,8 @@ func (p *PipedSource) Search(ctx context.Context, query string) ([]*Track, error
 	return tracks, nil
 }
 
-// GetTrack retrieves track metadata from Piped by video ID or URL.
-func (p *PipedSource) GetTrack(ctx context.Context, idOrURL string) (*Track, error) {
+// getTrack retrieves track metadata from Piped by video ID or URL.
+func (p *PipedSource) getTrack(ctx context.Context, idOrURL string) (*Track, error) {
 	videoID := extractVideoID(idOrURL)
 	if videoID == "" {
 		return nil, errors.New("invalid youtube video id or url")
@@ -174,7 +170,7 @@ func (p *PipedSource) GetStreamURL(ctx context.Context, track *Track) (string, e
 	if track.StreamURL != "" {
 		return track.StreamURL, nil
 	}
-	t, err := p.GetTrack(ctx, track.ID)
+	t, err := p.getTrack(ctx, track.ID)
 	if err != nil {
 		return "", err
 	}

@@ -19,6 +19,7 @@ func TestConfigLoadDefaults(t *testing.T) {
 	_ = os.Unsetenv("AUDIO_SOURCE_MODE")
 	_ = os.Unsetenv("DEFAULT_VOLUME")
 	_ = os.Unsetenv("IDLE_TIMEOUT")
+	_ = os.Unsetenv("EMPTY_CHANNEL_TIMEOUT")
 
 	cfg, err := Load()
 	if err != nil {
@@ -36,6 +37,9 @@ func TestConfigLoadDefaults(t *testing.T) {
 	}
 	if cfg.IdleTimeout != 3*time.Minute {
 		t.Errorf("expected default idle timeout 3m, got %v", cfg.IdleTimeout)
+	}
+	if cfg.EmptyChannelTimeout != 1*time.Minute {
+		t.Errorf("expected default empty channel timeout 1m, got %v", cfg.EmptyChannelTimeout)
 	}
 	if cfg.DefaultAutoplay != false {
 		t.Errorf("expected default autoplay false, got %v", cfg.DefaultAutoplay)
@@ -61,6 +65,7 @@ func TestConfigLoadCustom(t *testing.T) {
 	t.Setenv("PIPED_API_URL", "https://custom.piped.instance/")
 	t.Setenv("DEFAULT_VOLUME", "75")
 	t.Setenv("IDLE_TIMEOUT", "5m")
+	t.Setenv("EMPTY_CHANNEL_TIMEOUT", "45s")
 	_ = os.Unsetenv("YTDLP_COOKIES_FILE")
 	_ = os.Unsetenv("YTDLP_COOKIES_FROM_BROWSER")
 
@@ -80,6 +85,9 @@ func TestConfigLoadCustom(t *testing.T) {
 	}
 	if cfg.IdleTimeout != 5*time.Minute {
 		t.Errorf("expected idle timeout 5m, got %v", cfg.IdleTimeout)
+	}
+	if cfg.EmptyChannelTimeout != 45*time.Second {
+		t.Errorf("expected empty channel timeout 45s, got %v", cfg.EmptyChannelTimeout)
 	}
 }
 
