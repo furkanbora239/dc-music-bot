@@ -1,131 +1,184 @@
-# 🎵 dc-music-bot
+# dc-music-bot
 
-<p align="center">
-  <b>A blazingly fast, lightweight, and self-hosted Discord music bot written in Go.</b><br>
-  Powered by YouTube Music, Piped API, and yt-dlp. Containerized with Docker.
-</p>
+**A self-hosted Discord music bot written in Go.**
 
-<p align="center">
-  <img src="https://img.shields.io/badge/Language-Go%201.24+-00ADD8?style=flat&logo=go" alt="Go">
-  <img src="https://img.shields.io/badge/Docker-Ready-2496ED?style=flat&logo=docker" alt="Docker">
-  <img src="https://img.shields.io/badge/Discord-Slash%20Commands-5865F2?style=flat&logo=discord" alt="Discord">
-  <img src="https://img.shields.io/badge/License-MIT-green.svg" alt="License">
-</p>
+YouTube Music search, Piped API and yt-dlp support; Docker image, low memory footprint, and an isolated playback queue per server.
 
 ---
 
-## 🌟 Features / Özellikler
+## Features
 
-- 🚀 **Blazingly Fast & Lightweight:** Written in Go with minimal resource footprint (< 50MB RAM usage).
-- 🎧 **Hybrid Audio Engine:**
-  - Inspired by modern clients like **SimpMusic** and **PipePipe**.
-  - Fast search and direct stream resolution via **Piped API** (YouTube Music).
-  - Built-in fallback to **yt-dlp** for extreme resilience against YouTube IP blocks and bot-detection.
-- ⚡ **Discord Slash Commands:** Full Discord Application Command support (`/play`, `/skip`, `/queue`, `/loop`, `/autoplay`, etc.).
-- 📻 **Autoplay / Radio Mode:** Automatically queues and plays recommended songs when the queue ends (like Spotify/YouTube Music), with duplicate-prevention history.
-- 🎛️ **Interactive UI Buttons:** Control music playback with one click (⏯️ Play/Pause, ⏭️ Skip, ⏹️ Stop, 🔁 Loop, 📻 Autoplay).
-- 🛡️ **Guild-Isolated Architecture:** Independent goroutine and playback queue per Discord server.
-- ⏱️ **Auto Idle Disconnect:** Automatically disconnects from voice after inactivity (default: 3 minutes) to save CPU and bandwidth.
-- 🐳 **Docker & Docker Compose:** Multi-stage minimal container ready for instant self-hosting on any VPS or homelab.
+- **Hybrid audio engine** — `ytdlp` (local, fast), `piped` (API-based) or `hybrid` (tries yt-dlp, falls back to Piped).
+- **Slash commands** — `/play`, `/skip`, `/queue`, `/loop`, `/volume`, `/autoplay` and more.
+- **Playlist support** — Passing a playlist URL enqueues up to 100 tracks.
+- **Autoplay (radio mode)** — When the queue runs out, plays recommendations from YouTube's `RD` radio mix; tracks already played are not suggested again (last 50 tracked).
+- **Interactive buttons** — Play/Pause, Skip, Stop, Loop and Autoplay with a single click.
+- **Per-guild isolation** — A separate goroutine and queue for each guild; one server never affects another.
+- **Auto disconnect** — Leaves the voice channel when the queue empties or nobody is left in the channel (both durations configurable).
+- **Docker ready** — Multi-stage minimal Alpine image, non-root user, memory/CPU limits.
 
 ---
 
-## 📋 Slash Commands / Komutlar
+## Commands
 
-| Command | Arguments | Description (EN) | Açıklama (TR) |
-|---|---|---|---|
-| `/play` | `<query>` | Plays a song or adds to queue (title, artist, or URL) | Şarkı çalar veya kuyruğa ekler (isim, sanatçı ya da link) |
-| `/pause` | - | Pauses current audio playback | Çalan müziği duraklatır |
-| `/resume` | - | Resumes paused audio | Duraklatılmış müziği devam ettirir |
-| `/skip` | - | Skips to the next song in queue | Sıradaki şarkıya geçer |
-| `/stop` | - | Stops music, clears queue, leaves voice | Müziği durdurur, kuyruğu temizler ve kanaldan ayrılır |
-| `/queue` | - | Displays upcoming songs in the queue | Kuyruktaki şarkı listesini gösterir |
-| `/nowplaying` | - | Shows currently playing song with controls | Şu an çalan şarkı bilgilerini ve butonları gösterir |
-| `/loop` | `<mode>` | Configures loop mode (`off`, `track`, `queue`) | Tekrar modunu ayarlar (kapalı, tek şarkı, tüm kuyruk) |
-| `/shuffle` | - | Randomly shuffles the upcoming playlist | Kuyruğu rastgele karıştırır |
-| `/volume` | `<1-100>` | Adjusts audio volume | Ses seviyesini ayarlar |
-| `/autoplay` | `[mode]` | Toggles or configures autoplay (`on`, `off`, `status`) | Şarkı bitince önerilenlerle devam etmeyi ayarlar |
-| `/help` | - | Lists commands and help documentation | Komut yardım listesini görüntüler |
+| Command | Argument | Description |
+|---|---|---|
+| `/play` | `query` (required) | Song title, artist, or direct URL (video or playlist) |
+| `/pause` | — | Pauses the current track |
+| `/resume` | — | Resumes the paused track |
+| `/skip` | — | Skips to the next track |
+| `/stop` | — | Stops playback, clears the queue, leaves the voice channel |
+| `/queue` | — | Lists upcoming tracks |
+| `/nowplaying` | — | Current track info + control buttons |
+| `/loop` | `mode` | `off` · `track` (repeat one) · `queue` (repeat all) |
+| `/shuffle` | — | Randomly shuffles the upcoming queue |
+| `/volume` | `level` (1-100) | Adjusts playback volume |
+| `/autoplay` | `mode` (optional) | `on` · `off` · `status`; without an argument it toggles |
+| `/help` | — | Command list |
+
+> **Note:** You must be in a voice channel when running a command; the bot joins that channel.
 
 ---
 
-## 🚀 Quick Start (Docker Compose) / Hızlı Başlangıç
+## Setup
 
-### 1. Discord Bot Token Alma
-1. [Discord Developer Portal](https://discord.com/developers/applications) adresine gidin.
-2. Yeni bir Application oluşturun ve **Bot** sekmesine gelin.
-3. **Privileged Gateway Intents** altında:
-   - ✅ **Server Members Intent** (opsiyonel)
-   - ✅ **Message Content Intent** (gerekmez! Bot slash komutları kullanır)
-4. Bot token'ınızı kopyalayın.
-5. **OAuth2 -> URL Generator** sekmesinden `bot` ve `applications.commands` seçip, `Connect` ve `Speak` izinleriyle botu sunucunuza davet edin.
+### 1) Create the Discord bot
 
-### 2. Yapılandırma (`.env`)
-Depoyu klonlayın ve `.env` dosyasını oluşturun:
+1. Go to [Discord Developer Portal](https://discord.com/developers/applications) → **New Application**.
+2. Copy the token from the **Bot** tab.
+3. **Privileged Gateway Intents are not required** — the bot only uses the `Guilds` and `Guild Voice States` intents.
+4. **OAuth2 → URL Generator** → scopes: `bot` + `applications.commands`; bot permissions: `Connect`, `Speak`. Invite the bot with the generated URL.
+
+### 2) Configure
+
 ```bash
+git clone https://github.com/user/dc-music-bot.git
+cd dc-music-bot
 cp .env.example .env
 ```
-`.env` dosyasını düzenleyip bot tokenınızı girin:
+
+Fill in at least the token in `.env`:
+
 ```env
 DISCORD_TOKEN=your_bot_token_here
 AUDIO_SOURCE_MODE=hybrid
-PIPED_API_URL=https://api.piped.private.coffee
-DEFAULT_VOLUME=100
-IDLE_TIMEOUT=3m
 ```
 
-### 3. Çalıştırma
-```bash
-# Docker Compose ile arka planda başlatın
-docker compose up -d
+### 3) Run (Docker)
 
-# Logları takip etmek için
-docker compose logs -f
+```bash
+docker compose up -d          # start in the background
+docker compose logs -f        # follow logs
+docker compose down           # stop
+```
+
+On first startup slash commands are registered globally, so they may take a few minutes to appear in Discord.
+Set `DISCORD_GUILD_ID` during development to register commands to a single server **instantly**.
+
+---
+
+## Local development
+
+Requirements: **Go 1.26+**, **FFmpeg**, **yt-dlp** (both must be on `PATH`).
+
+```bash
+make build   # compile to ./bin/dc-music-bot
+make run     # go run ./cmd/bot
+make test    # go test -v -race ./...
+make clean   # remove build artifacts
 ```
 
 ---
 
-## 🛠️ Yerel Geliştirme (Local Development)
+## Configuration
 
-### Gereksinimler
-- **Go** (1.24+)
-- **FFmpeg** (sistem PATH'inde bulunmalı)
-- **yt-dlp** (sistem PATH'inde bulunmalı)
-
-```bash
-# Bağımlılıkları yükleyin ve derleyin
-make build
-
-# Testleri çalıştırın
-make test
-
-# Botu çalıştırın
-make run
-```
-
----
-
-## ⚙️ Yapılandırma Parametreleri (Configuration)
-
-| Değişken (Variable) | Varsayılan (Default) | Açıklama |
+| Variable | Default | Description |
 |---|---|---|
-| `DISCORD_TOKEN` | *Zorunlu* | Discord Bot Token |
-| `DISCORD_APP_ID` | *Otomatik* | Bot Application ID (boş bırakılırsa token'dan algılanır) |
-| `DISCORD_GUILD_ID` | *Boş* | Geliştirme sırasında komutların anında yüklenmesi için test sunucusu ID'si |
-| `AUDIO_SOURCE_MODE` | `hybrid` | `hybrid` (Piped + yt-dlp fallback), `piped`, veya `ytdlp` |
-| `PIPED_API_URL` | `https://api.piped.private.coffee` | Kullanılacak Piped API instance adresi |
-| `DEFAULT_VOLUME` | `100` | Başlangıç ses seviyesi (1-100) |
-| `IDLE_TIMEOUT` | `3m` | Şarkı bittiğinde boşta bekleme ve kanaldan çıkış süresi |
-| `EMPTY_CHANNEL_TIMEOUT` | `1m` | Ses kanalında kullanıcı kalmadığında kanaldan çıkış süresi (`0s` = devre dışı) |
-| `DEFAULT_AUTOPLAY` | `false` | Kuyruk bittiğinde otomatik önerilen şarkılarla devam etme modu (`true` veya `false`) |
-| `LOG_LEVEL` | `info` | Loglama seviyesi (`info` veya `debug`) |
-| `YTDLP_COOKIES_FILE` | *Boş* | yt-dlp için Netscape formatlı `cookies.txt` yolu (bot-duvarı için opsiyonel kurtarma yolu; boş = misafir mod). Docker: `docker-compose.yml` içindeki cookies volume'u aktiftir; **yazılabilir** bırakın (`:ro` eklemeyin) — yt-dlp çıkışta güncellenmiş cookie'leri dosyaya geri yazar, read-only mount her extraction'ı çökertir |
-| `YTDLP_COOKIES_FROM_BROWSER` | *Boş* | yt-dlp `--cookies-from-browser` tarayıcı adı (`chrome`, `firefox`, `safari`); `YTDLP_COOKIES_FILE` doluysa o önceliklidir |
+| `DISCORD_TOKEN` | *required* | Discord bot token |
+| `DISCORD_APP_ID` | *auto* | Detected from the session when left empty |
+| `DISCORD_GUILD_ID` | *empty* | Test server ID for instant command registration |
+| `AUDIO_SOURCE_MODE` | `hybrid` | `hybrid` · `piped` · `ytdlp` |
+| `PIPED_API_URL` | `https://api.piped.private.coffee` | Piped instance to use (no trailing `/`) |
+| `DEFAULT_VOLUME` | `100` | Initial volume (1-100) |
+| `IDLE_TIMEOUT` | `3m` | Idle wait duration after the queue empties |
+| `EMPTY_CHANNEL_TIMEOUT` | `1m` | Leave duration when the voice channel is empty (`0s` disables) |
+| `DEFAULT_AUTOPLAY` | `false` | Keep playing recommendations when the queue ends |
+| `LOG_LEVEL` | `info` | `info` or `debug` |
+| `YTDLP_COOKIES_FILE` | *empty* | Path to a Netscape-format `cookies.txt` for yt-dlp |
+| `YTDLP_COOKIES_FROM_BROWSER` | *empty* | Browser name for yt-dlp `--cookies-from-browser` (`chrome`, `firefox`, `safari`) |
 
-> 🍪 **Cookie notu / Cookie note:** Varsayılan davranış **misafir (girişsiz)** moddur; her iki değişken de boşsa yt-dlp komut satırı eskisiyle tamamen aynıdır. Bazı çıkış IP'lerinde YouTube "Sign in to confirm you're not a bot" dediğinde, `YTDLP_COOKIES_FILE` ile bir `cookies.txt` verin ya da `YTDLP_COOKIES_FROM_BROWSER` ile tarayıcı seçin. Dosya bulunamazsa bot çökmez, uyarı loglayıp misafir modda devam eder. The default is guest (no-login) mode with identical yt-dlp args as before; both options are only a rescue path for the bot-detection wall.
+Invalid or unparsable values silently fall back to their defaults (e.g. an out-of-range `DEFAULT_VOLUME` or a malformed `IDLE_TIMEOUT`).
+
+### Audio source modes
+
+| Mode | Behaviour |
+|---|---|
+| `ytdlp` | Only the local `yt-dlp` binary. Fastest option; may hit YouTube IP/bot blocks. |
+| `piped` | Only the Piped API. No local yt-dlp needed, though public instances occasionally return 500s. |
+| `hybrid` | Tries yt-dlp first, falls back to Piped on failure. **Recommended.** |
+
+### YouTube "Sign in to confirm you're not a bot" wall
+
+Cookie options are **off by default** (guest mode); yt-dlp arguments remain unchanged.
+Some egress IPs trigger a YouTube check — in that case enable one of the two rescue paths:
+
+- `YTDLP_COOKIES_FILE=/path/to/cookies.txt` — Netscape-format cookie file. If `YTDLP_COOKIES_FROM_BROWSER` is also set, the **file wins**.
+- `YTDLP_COOKIES_FROM_BROWSER=chrome` — Read cookies from the browser automatically.
+
+A missing file does not crash the bot: it logs a warning and continues in guest mode.
+
+If you use cookies with Docker, add a **writable** volume to the compose file:
+
+```yaml
+volumes:
+  - ./cookies.txt:/app/cookies.txt   # do NOT add :ro
+```
+
+Adding `:ro` breaks every extraction, because yt-dlp writes its refreshed cookie jar back to the file on exit.
+`.gitignore` already covers `cookies.txt` — never commit it.
 
 ---
 
-## 📄 Lisans / License
+## Project structure
 
-Bu proje **MIT** lisansı ile lisanslanmıştır. Detaylar için [LICENSE](LICENSE) dosyasına göz atabilirsiniz.
+```
+cmd/bot/            Application entry point (main.go)
+internal/
+  audio/            Track model + Piped / yt-dlp sources and fallback logic
+    piped.go        Piped API client
+    ytdlp.go        yt-dlp process management, search, stream resolving, recommendations
+    resolver.go     Mode selection (ytdlp | piped | hybrid) and fallback
+  bot/              Discord layer
+    bot.go          Session, intents, slash command registration
+    commands.go     Command definitions
+    handlers.go     Command and button interactions
+  config/           Environment variable loading and validation
+  dca/              FFmpeg → Opus encoding and streaming to Discord
+  player/           Per-guild player, queue, loop/autoplay logic
+Dockerfile          Multi-stage build (Go) + Alpine runtime image
+docker-compose.yml  Resource limits, tmpfs, security hardening
+Makefile            build / run / test / docker-* targets
+```
+
+Data flow: a user runs `/play` → `resolver.go` picks the right source and finds the track → `player` adds it to the queue → `dca` encodes it to Opus with FFmpeg and streams it to the Discord voice channel.
+
+---
+
+## Troubleshooting
+
+| Symptom | Cause / fix |
+|---|---|
+| Commands not showing in Discord | Global registration takes a few minutes. Try instant registration with `DISCORD_GUILD_ID`. |
+| `DISCORD_TOKEN environment variable is required` | `.env` is missing or `DISCORD_TOKEN` is empty. |
+| `yt-dlp` / `ffmpeg` not found | The binaries are not on `PATH` (they ship with the Docker image). |
+| Bot does not join the channel | Check that `Connect` and `Speak` permissions are granted for that channel. |
+| Tracks fail to play, bot-detection error | Enable a cookie rescue path, or try `AUDIO_SOURCE_MODE=piped`. |
+| Piped errors (500 / timeout) | Try another instance: [public Piped instances](https://github.com/TeamPiped/Documentation/blob/main/content/docs/public-instances/index.md). |
+
+Set `LOG_LEVEL=debug` to see yt-dlp arguments and source fallback transitions in the logs.
+
+---
+
+## License
+
+[MIT](LICENSE)
