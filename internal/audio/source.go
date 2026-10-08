@@ -38,4 +38,3 @@ type Source interface {
 	GetStreamURL(ctx context.Context, track *Track) (string, error)
 	GetRecommendations(ctx context.Context, track *Track, limit int) ([]*Track, error)
 }
-

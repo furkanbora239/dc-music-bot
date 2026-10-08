@@ -15,7 +15,7 @@ import (
 type Bot struct {
 	cfg      *config.Config
 	session  *discordgo.Session
-	resolver *audio.Resolver
+	source   audio.Source
 	manager  *player.Manager
 	botCache sync.Map
 }
@@ -33,14 +33,14 @@ func NewBot(cfg *config.Config) (*Bot, error) {
 		session.LogLevel = discordgo.LogDebug
 	}
 
-	resolver := audio.NewResolver(cfg.AudioSourceMode, cfg.PipedAPIURL, cfg.YtDlpCookiesFile, cfg.YtDlpCookiesFromBrowser)
+	source := audio.NewYtDlpSource("", cfg.YtDlpCookiesFile, cfg.YtDlpCookiesFromBrowser)
 	manager := player.NewManager()
 
 	b := &Bot{
-		cfg:      cfg,
-		session:  session,
-		resolver: resolver,
-		manager:  manager,
+		cfg:     cfg,
+		session: session,
+		source:  source,
+		manager: manager,
 	}
 
 	session.AddHandler(b.handleInteraction)

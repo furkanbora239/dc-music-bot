@@ -2,13 +2,13 @@
 
 **A self-hosted Discord music bot written in Go.**
 
-YouTube Music search, Piped API and yt-dlp support; Docker image, low memory footprint, and an isolated playback queue per server.
+YouTube Music search via the local yt-dlp binary; Docker image, low memory footprint, and an isolated playback queue per server.
 
 ---
 
 ## Features
 
-- **Hybrid audio engine** — `ytdlp` (local, fast), `piped` (API-based) or `hybrid` (tries yt-dlp, falls back to Piped).
+- **Single audio source** — Every search, stream URL and recommendation goes through the local `yt-dlp` binary (no third-party API to go down).
 - **Slash commands** — `/play`, `/skip`, `/queue`, `/loop`, `/volume`, `/autoplay` and more.
 - **Playlist support** — Passing a playlist URL enqueues up to 100 tracks.
 - **Autoplay (radio mode)** — When the queue runs out, plays recommendations from YouTube's `RD` radio mix; tracks already played are not suggested again (last 50 tracked).
@@ -61,7 +61,6 @@ Fill in at least the token in `.env`:
 
 ```env
 DISCORD_TOKEN=your_bot_token_here
-AUDIO_SOURCE_MODE=hybrid
 ```
 
 ### 3) Run (Docker)
@@ -97,8 +96,6 @@ make clean   # remove build artifacts
 | `DISCORD_TOKEN` | *required* | Discord bot token |
 | `DISCORD_APP_ID` | *auto* | Detected from the session when left empty |
 | `DISCORD_GUILD_ID` | *empty* | Test server ID for instant command registration |
-| `AUDIO_SOURCE_MODE` | `hybrid` | `hybrid` · `piped` · `ytdlp` |
-| `PIPED_API_URL` | `https://api.piped.private.coffee` | Piped instance to use (no trailing `/`) |
 | `DEFAULT_VOLUME` | `100` | Initial volume (1-100) |
 | `IDLE_TIMEOUT` | `3m` | Idle wait duration after the queue empties |
 | `EMPTY_CHANNEL_TIMEOUT` | `1m` | Leave duration when the voice channel is empty (`0s` disables) |
@@ -108,14 +105,6 @@ make clean   # remove build artifacts
 | `YTDLP_COOKIES_FROM_BROWSER` | *empty* | Browser name for yt-dlp `--cookies-from-browser` (`chrome`, `firefox`, `safari`) |
 
 Invalid or unparsable values silently fall back to their defaults (e.g. an out-of-range `DEFAULT_VOLUME` or a malformed `IDLE_TIMEOUT`).
-
-### Audio source modes
-
-| Mode | Behaviour |
-|---|---|
-| `ytdlp` | Only the local `yt-dlp` binary. Fastest option; may hit YouTube IP/bot blocks. |
-| `piped` | Only the Piped API. No local yt-dlp needed, though public instances occasionally return 500s. |
-| `hybrid` | Tries yt-dlp first, falls back to Piped on failure. **Recommended.** |
 
 ### YouTube "Sign in to confirm you're not a bot" wall
 
@@ -144,23 +133,21 @@ Adding `:ro` breaks every extraction, because yt-dlp writes its refreshed cookie
 ```
 cmd/bot/            Application entry point (main.go)
 internal/
-  audio/            Track model + Piped / yt-dlp sources and fallback logic
-    piped.go        Piped API client
+  audio/            Track model + yt-dlp source
     ytdlp.go        yt-dlp process management, search, stream resolving, recommendations
-    resolver.go     Mode selection (ytdlp | piped | hybrid) and fallback
   bot/              Discord layer
     bot.go          Session, intents, slash command registration
     commands.go     Command definitions
     handlers.go     Command and button interactions
   config/           Environment variable loading and validation
-  dca/              FFmpeg → Opus encoding and streaming to Discord
+  dca/              FFmpeg → Opus encoding and streaming to Discord (trimmed vendored copy of jonas747/dca)
   player/           Per-guild player, queue, loop/autoplay logic
 Dockerfile          Multi-stage build (Go) + Alpine runtime image
 docker-compose.yml  Resource limits, tmpfs, security hardening
 Makefile            build / run / test / docker-* targets
 ```
 
-Data flow: a user runs `/play` → `resolver.go` picks the right source and finds the track → `player` adds it to the queue → `dca` encodes it to Opus with FFmpeg and streams it to the Discord voice channel.
+Data flow: a user runs `/play` → `ytdlp.go` finds the track → `player` adds it to the queue → `dca` encodes it to Opus with FFmpeg and streams it to the Discord voice channel.
 
 ---
 
@@ -172,8 +159,7 @@ Data flow: a user runs `/play` → `resolver.go` picks the right source and find
 | `DISCORD_TOKEN environment variable is required` | `.env` is missing or `DISCORD_TOKEN` is empty. |
 | `yt-dlp` / `ffmpeg` not found | The binaries are not on `PATH` (they ship with the Docker image). |
 | Bot does not join the channel | Check that `Connect` and `Speak` permissions are granted for that channel. |
-| Tracks fail to play, bot-detection error | Enable a cookie rescue path, or try `AUDIO_SOURCE_MODE=piped`. |
-| Piped errors (500 / timeout) | Try another instance: [public Piped instances](https://github.com/TeamPiped/Documentation/blob/main/content/docs/public-instances/index.md). |
+| Tracks fail to play, bot-detection error | Enable a cookie rescue path (see above). |
 
 Set `LOG_LEVEL=debug` to see yt-dlp arguments and source fallback transitions in the logs.
 

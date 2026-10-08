@@ -16,7 +16,6 @@ func TestConfigLoadRequiredToken(t *testing.T) {
 
 func TestConfigLoadDefaults(t *testing.T) {
 	t.Setenv("DISCORD_TOKEN", "test-token-123")
-	_ = os.Unsetenv("AUDIO_SOURCE_MODE")
 	_ = os.Unsetenv("DEFAULT_VOLUME")
 	_ = os.Unsetenv("IDLE_TIMEOUT")
 	_ = os.Unsetenv("EMPTY_CHANNEL_TIMEOUT")
@@ -28,9 +27,6 @@ func TestConfigLoadDefaults(t *testing.T) {
 
 	if cfg.DiscordToken != "test-token-123" {
 		t.Errorf("expected token 'test-token-123', got '%s'", cfg.DiscordToken)
-	}
-	if cfg.AudioSourceMode != "hybrid" {
-		t.Errorf("expected default source mode 'hybrid', got '%s'", cfg.AudioSourceMode)
 	}
 	if cfg.DefaultVolume != 100 {
 		t.Errorf("expected default volume 100, got %d", cfg.DefaultVolume)
@@ -61,8 +57,6 @@ func TestConfigLoadAutoplay(t *testing.T) {
 
 func TestConfigLoadCustom(t *testing.T) {
 	t.Setenv("DISCORD_TOKEN", "custom-token")
-	t.Setenv("AUDIO_SOURCE_MODE", "ytdlp")
-	t.Setenv("PIPED_API_URL", "https://custom.piped.instance/")
 	t.Setenv("DEFAULT_VOLUME", "75")
 	t.Setenv("IDLE_TIMEOUT", "5m")
 	t.Setenv("EMPTY_CHANNEL_TIMEOUT", "45s")
@@ -74,12 +68,6 @@ func TestConfigLoadCustom(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if cfg.AudioSourceMode != "ytdlp" {
-		t.Errorf("expected source mode 'ytdlp', got '%s'", cfg.AudioSourceMode)
-	}
-	if cfg.PipedAPIURL != "https://custom.piped.instance" {
-		t.Errorf("expected trailing slash removed from piped url, got '%s'", cfg.PipedAPIURL)
-	}
 	if cfg.DefaultVolume != 75 {
 		t.Errorf("expected volume 75, got %d", cfg.DefaultVolume)
 	}

@@ -13,12 +13,10 @@ import (
 
 // Config holds the application configuration parameters.
 type Config struct {
-	DiscordToken    string
-	DiscordAppID    string
-	GuildID         string
-	AudioSourceMode string
-	PipedAPIURL     string
-	DefaultVolume   int
+	DiscordToken        string
+	DiscordAppID        string
+	GuildID             string
+	DefaultVolume       int
 	IdleTimeout         time.Duration
 	EmptyChannelTimeout time.Duration
 	LogLevel            string
@@ -48,17 +46,6 @@ func Load() (*Config, error) {
 
 	appID := strings.TrimSpace(os.Getenv("DISCORD_APP_ID"))
 	guildID := strings.TrimSpace(os.Getenv("DISCORD_GUILD_ID"))
-
-	sourceMode := strings.ToLower(strings.TrimSpace(os.Getenv("AUDIO_SOURCE_MODE")))
-	if sourceMode == "" {
-		sourceMode = "hybrid"
-	}
-
-	pipedURL := strings.TrimSpace(os.Getenv("PIPED_API_URL"))
-	if pipedURL == "" {
-		pipedURL = "https://api.piped.private.coffee"
-	}
-	pipedURL = strings.TrimRight(pipedURL, "/")
 
 	volume := 100
 	if volStr := os.Getenv("DEFAULT_VOLUME"); volStr != "" {
@@ -123,8 +110,6 @@ func Load() (*Config, error) {
 		DiscordToken:            token,
 		DiscordAppID:            appID,
 		GuildID:                 guildID,
-		AudioSourceMode:         sourceMode,
-		PipedAPIURL:             pipedURL,
 		DefaultVolume:           volume,
 		IdleTimeout:             idleTimeout,
 		EmptyChannelTimeout:     emptyChannelTimeout,

@@ -32,7 +32,7 @@ func (m *Manager) Get(guildID string) *Player {
 func (m *Manager) GetOrCreate(
 	guildID, voiceChannelID, textChannelID string,
 	session *discordgo.Session,
-	resolver *audio.Resolver,
+	source audio.Source,
 	defaultVolume int,
 	idleTimeout time.Duration,
 	defaultAutoplay bool,
@@ -55,7 +55,7 @@ func (m *Manager) GetOrCreate(
 		voiceChannelID,
 		textChannelID,
 		session,
-		resolver,
+		source,
 		defaultVolume,
 		idleTimeout,
 		defaultAutoplay,

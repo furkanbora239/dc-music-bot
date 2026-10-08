@@ -8,27 +8,21 @@
 //
 // The fix (see encode.go) drops "-vol" and instead, only when the requested
 // volume differs from the default (256 == 1.0), appends
-//   "-af", "volume=<scale>"
+//
+//	"-af", "volume=<scale>"
+//
 // where scale = Volume/256.0.
 //
-// decode.go has been intentionally omitted (it is unused by dc-music-bot).
+// Compared to upstream, the DCA container metadata writer (writeMetadataFrame),
+// the ffprobe/cover-art machinery, the io.Reader based frame API and the
+// transcode stats parser have all been removed: dc-music-bot always encodes
+// with RawOutput=true and streams frames straight to Discord, so none of them
+// were reachable.
 package dca
 
 import (
 	"log"
 	"time"
-)
-
-// Define constants
-const (
-	// The current version of the DCA format
-	FormatVersion int8 = 1
-
-	// The current version of the DCA program
-	LibraryVersion string = "0.0.5"
-
-	// The URL to the GitHub repository of DCA
-	GitHubRepositoryURL string = "https://github.com/jonas747/dca"
 )
 
 // OpusReader is implemented by both EncodeSession and DecodeSession and is the

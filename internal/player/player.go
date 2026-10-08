@@ -18,10 +18,10 @@ type Player struct {
 	voiceChannelID string
 	textChannelID  string
 
-	session  *discordgo.Session
-	vc       *discordgo.VoiceConnection
-	resolver *audio.Resolver
-	queue    *Queue
+	session *discordgo.Session
+	vc      *discordgo.VoiceConnection
+	source  audio.Source
+	queue   *Queue
 
 	nowPlaying    *audio.Track
 	streamSession *audio.StreamSession
@@ -46,10 +46,9 @@ type Player struct {
 }
 
 // streamErrorHint returns an extra hint line to append to a user-facing stream
-// resolution error message when the error chain indicates YouTube is
-// bot-blocking the server's IP (yt-dlp's "Sign in to confirm you're not a bot"
-// or Piped's SignInConfirmNotBotException). It returns "" when the error does
-// not match, so the base message format stays unchanged.
+// resolution error message when the error indicates YouTube is bot-blocking
+// the server's IP (yt-dlp's "Sign in to confirm you're not a bot"). It returns
+// "" when the error does not match, so the base message format stays unchanged.
 func streamErrorHint(err error) string {
 	if err == nil {
 		return ""
@@ -64,7 +63,7 @@ func streamErrorHint(err error) string {
 func NewPlayer(
 	guildID, voiceChannelID, textChannelID string,
 	session *discordgo.Session,
-	resolver *audio.Resolver,
+	source audio.Source,
 	volume int,
 	idleTimeout time.Duration,
 	defaultAutoplay bool,
@@ -75,7 +74,7 @@ func NewPlayer(
 		voiceChannelID: voiceChannelID,
 		textChannelID:  textChannelID,
 		session:        session,
-		resolver:       resolver,
+		source:         source,
 		queue:          NewQueue(),
 		volume:         volume,
 		idleTimeout:    idleTimeout,
@@ -277,7 +276,7 @@ func (p *Player) fetchAutoplayTrack(seed *audio.Track) *audio.Track {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
-	recs, err := p.resolver.GetRecommendations(ctx, seed, 10)
+	recs, err := p.source.GetRecommendations(ctx, seed, 10)
 	if err != nil || len(recs) == 0 {
 		slog.Warn("Failed to fetch autoplay recommendations", "error", err, "seed", seed.Title)
 		return nil
@@ -306,7 +305,6 @@ func (p *Player) fetchAutoplayTrack(seed *audio.Track) *audio.Track {
 
 	return nil
 }
-
 
 // Close destroys the player and terminates voice connection.
 func (p *Player) Close() {
@@ -450,7 +448,7 @@ func (p *Player) playbackLoop() {
 
 		// Resolve the direct stream URL for playback.
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-		streamURL, err := p.resolver.ResolveStreamURL(ctx, nextTrack)
+		streamURL, err := p.source.GetStreamURL(ctx, nextTrack)
 		cancel()
 
 		if err != nil || streamURL == "" {
@@ -466,7 +464,7 @@ func (p *Player) playbackLoop() {
 			if nextTrack.StreamURL != "" {
 				return nextTrack.StreamURL, nil
 			}
-			return p.resolver.ResolveStreamURL(ctx, nextTrack)
+			return p.source.GetStreamURL(ctx, nextTrack)
 		}, p.vc, volume)
 		if err != nil {
 			slog.Error("Failed to play audio stream", "error", err, "track", nextTrack.Title)

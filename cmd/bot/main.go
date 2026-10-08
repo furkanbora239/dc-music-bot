@@ -34,8 +34,6 @@ func main() {
 	}
 
 	slog.Info("Configuration loaded successfully",
-		"audio_source_mode", cfg.AudioSourceMode,
-		"piped_url", cfg.PipedAPIURL,
 		"default_volume", cfg.DefaultVolume,
 		"default_autoplay", cfg.DefaultAutoplay,
 		"idle_timeout", cfg.IdleTimeout,

@@ -154,7 +154,6 @@ func (s *StreamSession) Stop() {
 			s.cancel()
 		}
 		if s.encodingSession != nil {
-			s.encodingSession.Truncate()
 			s.encodingSession.Cleanup()
 		}
 	}

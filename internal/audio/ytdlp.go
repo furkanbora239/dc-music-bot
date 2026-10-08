@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/url"
 	"os/exec"
 	"strconv"
 	"strings"
@@ -67,6 +68,33 @@ type ytdlpJSON struct {
 	Thumbnail  string           `json:"thumbnail"`
 	Thumbnails []ytdlpThumbnail `json:"thumbnails"`
 	URL        string           `json:"url"` // direct stream url if extracted
+}
+
+// extractVideoID pulls a YouTube video ID out of a "/watch?v=" path, a
+// youtu.be / youtube.com URL, or a bare video ID.
+func extractVideoID(input string) string {
+	input = strings.TrimSpace(input)
+	if strings.HasPrefix(input, "/watch?v=") {
+		return strings.TrimPrefix(input, "/watch?v=")
+	}
+	if strings.Contains(input, "youtu.be/") {
+		parts := strings.Split(input, "youtu.be/")
+		if len(parts) > 1 {
+			id := strings.Split(parts[1], "?")[0]
+			return strings.Trim(id, "/")
+		}
+	}
+	if strings.Contains(input, "youtube.com/watch") {
+		u, err := url.Parse(input)
+		if err == nil {
+			return u.Query().Get("v")
+		}
+	}
+	// Direct video ID
+	if len(input) == 11 && !strings.Contains(input, "/") && !strings.Contains(input, " ") {
+		return input
+	}
+	return input
 }
 
 // Search searches for tracks using yt-dlp's built-in search.
@@ -288,4 +316,3 @@ func (y *YtDlpSource) GetRecommendations(ctx context.Context, seed *Track, limit
 	}
 	return nil, errors.New("no recommendations found by yt-dlp")
 }
-

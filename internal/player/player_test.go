@@ -9,8 +9,8 @@ import (
 )
 
 // TestStreamErrorHint verifies that the user-facing bot-wall hint is only
-// appended for YouTube "sign in to confirm" errors (matched case-insensitively,
-// covering both yt-dlp and Piped wording) and otherwise stays empty.
+// appended for YouTube "sign in to confirm" errors (matched
+// case-insensitively) and otherwise stays empty.
 func TestStreamErrorHint(t *testing.T) {
 	cases := []struct {
 		name    string
@@ -24,7 +24,7 @@ func TestStreamErrorHint(t *testing.T) {
 		},
 		{
 			name:    "http 500 yields no hint",
-			err:     errors.New("piped stream returned HTTP 500"),
+			err:     errors.New("stream returned HTTP 500"),
 			wantSub: "",
 		},
 		{
@@ -33,8 +33,8 @@ func TestStreamErrorHint(t *testing.T) {
 			wantSub: "YTDLP_COOKIES_FILE",
 		},
 		{
-			name:    "piped bot wall case-insensitive yields hint",
-			err:     errors.New("SignInConfirmNotBotException: SIGN IN TO CONFIRM"),
+			name:    "bot wall is matched case-insensitively",
+			err:     errors.New("SIGN IN TO CONFIRM you're not a bot"),
 			wantSub: "YTDLP_COOKIES_FILE",
 		},
 	}
@@ -153,4 +153,3 @@ func TestEmptyTimer_Expires(t *testing.T) {
 		t.Fatal("expected disconnectFn to be called after empty timer expired")
 	}
 }
-

@@ -68,7 +68,7 @@ func (b *Bot) handlePlay(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	ctx, cancel := context.WithTimeout(context.Background(), 25*time.Second)
 	defer cancel()
 
-	tracks, err := b.resolver.Search(ctx, query)
+	tracks, err := b.source.Search(ctx, query)
 	if err != nil || len(tracks) == 0 {
 		errMsg := "no tracks found"
 		if err != nil {
@@ -86,7 +86,7 @@ func (b *Bot) handlePlay(s *discordgo.Session, i *discordgo.InteractionCreate) {
 		voiceChID,
 		i.ChannelID,
 		s,
-		b.resolver,
+		b.source,
 		b.cfg.DefaultVolume,
 		b.cfg.IdleTimeout,
 		b.cfg.DefaultAutoplay,
@@ -330,7 +330,7 @@ func (b *Bot) handleAutoplay(s *discordgo.Session, i *discordgo.InteractionCreat
 func (b *Bot) handleHelp(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	embed := &discordgo.MessageEmbed{
 		Title:       "📖 Music Bot Help & Commands",
-		Description: "High-performance self-hosted Go Discord Music Bot powered by YouTube Music and Piped/yt-dlp.",
+		Description: "Self-hosted Go Discord Music Bot powered by YouTube Music and yt-dlp.",
 		Color:       0x5865F2,
 		Fields: []*discordgo.MessageEmbedField{
 			{Name: "`/play <query>`", Value: "Search YouTube Music or input URL to play audio", Inline: false},
@@ -530,4 +530,3 @@ func (b *Bot) isUserBot(guildID, userID string) bool {
 
 	return false
 }
-
