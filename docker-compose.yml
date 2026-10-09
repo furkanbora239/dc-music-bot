@@ -48,6 +48,10 @@ services:
       TZ: Europe/Istanbul
       # Botu bgutil sağlayıcısına bağlar; compose ağındaki servis adına gider.
       YTDLP_POT_BASE_URL: http://bgutil-provider:4416
+      # Kritik: yt-dlp'nin default client'ları POT flow'unu hiç tetiklemeden
+      # LOGIN_REQUIRED ile patlıyor; bgutil'in önerdiği client seti token'lı
+      # istek yoluna sokuyor ( POT'suz bu setin bir anlamı yok).
+      YTDLP_PLAYER_CLIENTS: mweb,tv,web_safari
 
     # SIGTERM sonrası botun temiz kapanması (ses bağlantısını bırakması) için bekleme süresi
     stop_grace_period: 30s

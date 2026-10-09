@@ -42,6 +42,7 @@ func main() {
 		"ytdlp_cookies_from_browser", cfg.YtDlpCookiesFromBrowser,
 		"ytdlp_proxy", cfg.YtDlpProxy,
 		"ytdlp_pot_base_url", cfg.YtDlpPotBaseURL,
+		"ytdlp_player_clients", cfg.YtDlpPlayerClients,
 	)
 
 	// Initialize bot

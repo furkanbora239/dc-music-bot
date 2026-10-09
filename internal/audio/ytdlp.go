@@ -13,6 +13,18 @@ import (
 	"time"
 )
 
+// YtDlpOptions configures the local yt-dlp source. Empty fields keep the
+// corresponding yt-dlp behaviour at its default (guest mode, no proxy, no
+// POT provider, default player clients).
+type YtDlpOptions struct {
+	BinaryPath         string
+	CookiesFile        string // YTDLP_COOKIES_FILE; wins over CookiesFromBrowser
+	CookiesFromBrowser string // YTDLP_COOKIES_FROM_BROWSER
+	Proxy              string // YTDLP_PROXY
+	PotBaseURL         string // YTDLP_POT_BASE_URL
+	PlayerClients      string // YTDLP_PLAYER_CLIENTS
+}
+
 // YtDlpSource implements Source using the local yt-dlp binary.
 type YtDlpSource struct {
 	binaryPath         string
@@ -20,22 +32,22 @@ type YtDlpSource struct {
 	cookiesFromBrowser string
 	proxy              string
 	potBaseURL         string
+	playerClients      string
 }
 
-// NewYtDlpSource creates a new yt-dlp source. cookiesFile and
-// cookiesFromBrowser are the optional yt-dlp cookie rescue options (see
-// config.YTDLP_COOKIES_FILE / YTDLP_COOKIES_FROM_BROWSER); both empty keeps
-// extraction in guest (no-login) mode. If both are provided, cookiesFile wins.
-func NewYtDlpSource(binaryPath, cookiesFile, cookiesFromBrowser, proxy, potBaseURL string) *YtDlpSource {
+// NewYtDlpSource creates a new yt-dlp source.
+func NewYtDlpSource(opts YtDlpOptions) *YtDlpSource {
+	binaryPath := strings.TrimSpace(opts.BinaryPath)
 	if binaryPath == "" {
 		binaryPath = "yt-dlp"
 	}
 	return &YtDlpSource{
 		binaryPath:         binaryPath,
-		cookiesFile:        strings.TrimSpace(cookiesFile),
-		cookiesFromBrowser: strings.TrimSpace(cookiesFromBrowser),
-		proxy:              strings.TrimSpace(proxy),
-		potBaseURL:         strings.TrimRight(strings.TrimSpace(potBaseURL), "/"),
+		cookiesFile:        strings.TrimSpace(opts.CookiesFile),
+		cookiesFromBrowser: strings.TrimSpace(opts.CookiesFromBrowser),
+		proxy:              strings.TrimSpace(opts.Proxy),
+		potBaseURL:         strings.TrimRight(strings.TrimSpace(opts.PotBaseURL), "/"),
+		playerClients:      strings.TrimSpace(opts.PlayerClients),
 	}
 }
 
@@ -65,6 +77,16 @@ func (y *YtDlpSource) buildArgs(base []string, target string) []string {
 	// involved. Empty means the plugin stays dormant.
 	if y.potBaseURL != "" {
 		args = append(args, "--extractor-args", "youtubepot-bgutilhttp:base_url="+y.potBaseURL)
+	}
+
+	// Optional player client override. Crucial when a POT provider is in use:
+	// with yt-dlp's default clients the PO Token flow is never even triggered
+	// (the clients fail earlier with LOGIN_REQUIRED), so the provider stays
+	// dormant and the bot check keeps firing. The mweb,tv,web_safari combo is
+	// the one recommended by the bgutil project to actually reach the
+	// token-backed request path.
+	if y.playerClients != "" {
+		args = append(args, "--extractor-args", "youtube:player_client="+y.playerClients)
 	}
 
 	args = append(args, base...)

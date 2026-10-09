@@ -58,6 +58,7 @@ func TestConfigLoadAutoplay(t *testing.T) {
 func TestConfigLoadPOTProvider(t *testing.T) {
 	t.Setenv("DISCORD_TOKEN", "tok")
 	t.Setenv("YTDLP_POT_BASE_URL", "http://bgutil-provider:4416")
+	t.Setenv("YTDLP_PLAYER_CLIENTS", "mweb,tv,web_safari")
 
 	cfg, err := Load()
 	if err != nil {
@@ -65,6 +66,9 @@ func TestConfigLoadPOTProvider(t *testing.T) {
 	}
 	if cfg.YtDlpPotBaseURL != "http://bgutil-provider:4416" {
 		t.Errorf("expected pot base url passthrough, got %q", cfg.YtDlpPotBaseURL)
+	}
+	if cfg.YtDlpPlayerClients != "mweb,tv,web_safari" {
+		t.Errorf("expected player clients passthrough, got %q", cfg.YtDlpPlayerClients)
 	}
 }
 

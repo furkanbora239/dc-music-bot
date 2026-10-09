@@ -43,6 +43,11 @@ type Config struct {
 	// fetches machine-generated proof-of-origin tokens from it to pass
 	// YouTube's bot check without accounts or cookies. Empty disables it.
 	YtDlpPotBaseURL string
+
+	// YTDLP_PLAYER_CLIENTS: comma-separated yt-dlp youtube player client list
+	// (e.g. mweb,tv,web_safari). Paired with a POT provider it makes the PO
+	// Token flow actually trigger; with yt-dlp's default clients it never does.
+	YtDlpPlayerClients string
 }
 
 // Load loads configuration from environment variables and optionally a .env file.
@@ -95,6 +100,7 @@ func Load() (*Config, error) {
 	cookiesFromBrowser := strings.TrimSpace(os.Getenv("YTDLP_COOKIES_FROM_BROWSER"))
 	proxy := strings.TrimSpace(os.Getenv("YTDLP_PROXY"))
 	potBaseURL := strings.TrimSpace(os.Getenv("YTDLP_POT_BASE_URL"))
+	playerClients := strings.TrimSpace(os.Getenv("YTDLP_PLAYER_CLIENTS"))
 
 	// A configured cookie file that is missing/unreadable must not crash the
 	// bot: warn and drop it so we continue as guest (or fall back to a
@@ -132,5 +138,6 @@ func Load() (*Config, error) {
 		YtDlpCookiesFromBrowser: cookiesFromBrowser,
 		YtDlpProxy:              proxy,
 		YtDlpPotBaseURL:         potBaseURL,
+		YtDlpPlayerClients:      playerClients,
 	}, nil
 }

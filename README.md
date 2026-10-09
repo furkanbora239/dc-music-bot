@@ -103,6 +103,7 @@ make clean   # remove build artifacts
 | `DEFAULT_AUTOPLAY` | `false` | Keep playing recommendations when the queue ends |
 | `LOG_LEVEL` | `info` | `info` or `debug` |
 | `YTDLP_POT_BASE_URL` | *set by compose* | Base URL of the bgutil PO-token provider sidecar (e.g. `http://bgutil-provider:4416`). `docker-compose.yml` already wires it; only set it manually when running without compose or on another network. |
+| `YTDLP_PLAYER_CLIENTS` | *set by compose* | yt-dlp YouTube player client list (`mweb,tv,web_safari`). Required companion to `YTDLP_POT_BASE_URL`: with yt-dlp's default clients the PO Token flow never triggers, so the provider stays dormant and the bot check keeps firing. |
 | `YTDLP_COOKIES_FILE` | *empty* | Path to a Netscape-format `cookies.txt` for yt-dlp (fallback if PO tokens ever stop being enough) |
 | `YTDLP_COOKIES_FROM_BROWSER` | *empty* | Browser name for yt-dlp `--cookies-from-browser` (`chrome`, `firefox`, `safari`) |
 | `YTDLP_PROXY` | *empty* | Proxy URL for every yt-dlp request (e.g. `socks5://100.64.0.5:1080`) — alternative escape route from IP blocks |
@@ -117,16 +118,19 @@ smarter code.
 
 **The Docker setup already contains the fix:** `docker-compose.yml` runs a
 [bgutil PO-token provider](https://github.com/Brainicism/bgutil-ytdlp-pot-provider)
-sidecar next to the bot, and the image ships the matching yt-dlp plugin. The
-provider mints proof-of-origin tokens on the fly (no Google account, no cookies),
-so yt-dlp passes the bot check straight from the server IP. Nothing to configure.
+sidecar next to the bot, the image ships the matching yt-dlp plugin, and the
+player client list is set to `mweb,tv,web_safari` — with yt-dlp's default clients
+the PO Token flow never even triggers (the clients fail earlier with
+`LOGIN_REQUIRED`), so the token-backed request path is what actually carries
+playback. No Google account, no cookies, nothing to configure.
 
 Verify it is active:
 
 ```bash
 docker compose ps                       # bgutil-provider: Up (healthy)
-docker compose exec dc-music-bot sh -c 'yt-dlp -v --extractor-args "youtubepot-bgutilhttp:base_url=$YTDLP_POT_BASE_URL" https://www.youtube.com/watch?v=dQw4w9WgXcQ 2>&1 | grep -m1 "PO Token Providers"'
+docker compose exec dc-music-bot sh -c 'yt-dlp -v --extractor-args "youtubepot-bgutilhttp:base_url=$YTDLP_POT_BASE_URL" --extractor-args "youtube:player_client=$YTDLP_PLAYER_CLIENTS" https://www.youtube.com/watch?v=dQw4w9WgXcQ 2>&1 | grep -m1 "PO Token Providers"'
 # -> [debug] [youtube] [pot] PO Token Providers: bgutil:http-x.y.z (external), ...
+# On a flagged IP also look for: [pot:bgutil:http] Generating a gvs PO Token ...
 ```
 
 > On a non-blocked IP you won't see a `Generating a ... PO Token` line — YouTube

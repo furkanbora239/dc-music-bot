@@ -27,7 +27,7 @@ var (
 )
 
 func TestBuildArgsGuestIdenticalToLegacy(t *testing.T) {
-	y := NewYtDlpSource("yt-dlp", "", "", "", "")
+	y := NewYtDlpSource(YtDlpOptions{BinaryPath: "yt-dlp"})
 
 	got := y.buildArgs(searchBase, "ytsearch1:test")
 	want := []string{
@@ -58,7 +58,7 @@ func TestBuildArgsGuestIdenticalToLegacy(t *testing.T) {
 }
 
 func TestBuildArgsCookiesFile(t *testing.T) {
-	y := NewYtDlpSource("yt-dlp", "/secrets/cookies.txt", "", "", "")
+	y := NewYtDlpSource(YtDlpOptions{BinaryPath: "yt-dlp", CookiesFile: "/secrets/cookies.txt"})
 
 	got := y.buildArgs(streamBase, "target")
 	want := []string{
@@ -76,7 +76,7 @@ func TestBuildArgsCookiesFile(t *testing.T) {
 }
 
 func TestBuildArgsCookiesFromBrowser(t *testing.T) {
-	y := NewYtDlpSource("yt-dlp", "", "firefox", "", "")
+	y := NewYtDlpSource(YtDlpOptions{BinaryPath: "yt-dlp", CookiesFromBrowser: "firefox"})
 
 	got := y.buildArgs(searchBase, "target")
 	want := []string{
@@ -97,7 +97,7 @@ func TestBuildArgsCookiesFromBrowser(t *testing.T) {
 func TestBuildArgsBothSetFileWins(t *testing.T) {
 	// Constructed directly with both options: the builder itself must prefer
 	// the cookies file even before config-level precedence is applied.
-	y := NewYtDlpSource("yt-dlp", "/secrets/cookies.txt", "chrome", "", "")
+	y := NewYtDlpSource(YtDlpOptions{BinaryPath: "yt-dlp", CookiesFile: "/secrets/cookies.txt", CookiesFromBrowser: "chrome"})
 
 	got := y.buildArgs(streamBase, "target")
 	want := []string{
@@ -120,7 +120,7 @@ func TestBuildArgsBothSetFileWins(t *testing.T) {
 }
 
 func TestBuildArgsProxy(t *testing.T) {
-	y := NewYtDlpSource("yt-dlp", "", "", "socks5://100.64.0.5:1080", "")
+	y := NewYtDlpSource(YtDlpOptions{BinaryPath: "yt-dlp", Proxy: "socks5://100.64.0.5:1080"})
 
 	got := y.buildArgs(streamBase, "target")
 	want := []string{
@@ -138,7 +138,7 @@ func TestBuildArgsProxy(t *testing.T) {
 }
 
 func TestBuildArgsPOTProvider(t *testing.T) {
-	y := NewYtDlpSource("yt-dlp", "", "", "", "http://bgutil-provider:4416")
+	y := NewYtDlpSource(YtDlpOptions{BinaryPath: "yt-dlp", PotBaseURL: "http://bgutil-provider:4416"})
 
 	got := y.buildArgs(streamBase, "target")
 	want := []string{
@@ -155,8 +155,31 @@ func TestBuildArgsPOTProvider(t *testing.T) {
 	}
 }
 
+func TestBuildArgsPlayerClientsWithPOT(t *testing.T) {
+	y := NewYtDlpSource(YtDlpOptions{
+		BinaryPath:    "yt-dlp",
+		PotBaseURL:    "http://bgutil-provider:4416",
+		PlayerClients: "mweb,tv,web_safari",
+	})
+
+	got := y.buildArgs(streamBase, "target")
+	want := []string{
+		"--source-address", "0.0.0.0", "--js-runtimes", "node",
+		"--extractor-args", "youtubepot-bgutilhttp:base_url=http://bgutil-provider:4416",
+		"--extractor-args", "youtube:player_client=mweb,tv,web_safari",
+		"-g",
+		"-f", "ba/b",
+		"--no-playlist",
+		"--no-warnings",
+		"target",
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("player clients args:\n got %q\nwant %q", got, want)
+	}
+}
+
 func TestNewYtDlpSourceTrimsAndDefaultsBinary(t *testing.T) {
-	y := NewYtDlpSource("", " /tmp/c.txt ", "  safari ", "", "  http://host:4416/  ")
+	y := NewYtDlpSource(YtDlpOptions{CookiesFile: " /tmp/c.txt ", CookiesFromBrowser: "  safari ", PotBaseURL: "  http://host:4416/  "})
 	if y.binaryPath != "yt-dlp" {
 		t.Errorf("expected default binary 'yt-dlp', got %q", y.binaryPath)
 	}
@@ -175,7 +198,7 @@ func TestYtDlpGetRecommendationsLive(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping live test in short mode")
 	}
-	y := NewYtDlpSource("yt-dlp", "", "", "", "")
+	y := NewYtDlpSource(YtDlpOptions{BinaryPath: "yt-dlp"})
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
