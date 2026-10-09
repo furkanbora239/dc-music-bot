@@ -3,19 +3,43 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    image: dc-music-bot:latest
     container_name: dc-music-bot
-    restart: unless-stopped
+    restart: unless-stopped          # Çökerse yeniden başlat; sunucu reboot sonrası Docker ile birlikte ayağa kalkar
+
     env_file:
       - .env
 
+    environment:
+      # Log zaman damgalarının doğru olması için (opsiyonel, ihtiyacına göre değiştir)
+      TZ: Europe/Istanbul
+
+    # SIGTERM sonrası botun temiz kapanması (ses bağlantısını bırakması) için bekleme süresi
+    stop_grace_period: 30s
+
+    # PID 1 olarak init kullanılır: sinyal iletimi ve zombie temizliği için daha güvenlidir
+    init: true
+
+    # Bot HTTP servisi açmadığı için süreç kontrolü yapılır. `-f` kullanılmıyor:
+    # -f sağlık kontrolünü çalıştıran shell'in kendi komut satırıyla da eşleşip
+    # her zaman "healthy" sonucu üretirdi. İsim üzerinden eşleşme yeterli.
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep dc-music-bot >/dev/null || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
     # 1. Kaynak Tüketim Limitleri (Sunucuyu korur, OOM engeller)
+    # Not: Bellek 256M -> 512M çıkarıldı. Aynı anda birden fazla sunucuda çalarken
+    # ffmpeg + yt-dlp süreçleri düşük limitte OOM-kill ile restart döngüsüne girebiliyor.
     deploy:
       resources:
         limits:
-          cpus: "1.00"
-          memory: 256M
+          cpus: "1.50"
+          memory: 512M
         reservations:
-          memory: 40M
+          memory: 96M
 
     # 2. RAM Tabanlı Hızlı /tmp (Disk I/O ve SSD yıpranmasını sıfırlar)
     tmpfs:
