@@ -40,6 +40,8 @@ func main() {
 		"empty_channel_timeout", cfg.EmptyChannelTimeout,
 		"ytdlp_cookies_file", cfg.YtDlpCookiesFile,
 		"ytdlp_cookies_from_browser", cfg.YtDlpCookiesFromBrowser,
+		"ytdlp_proxy", cfg.YtDlpProxy,
+		"ytdlp_pot_base_url", cfg.YtDlpPotBaseURL,
 	)
 
 	// Initialize bot

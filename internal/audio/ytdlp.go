@@ -18,13 +18,15 @@ type YtDlpSource struct {
 	binaryPath         string
 	cookiesFile        string
 	cookiesFromBrowser string
+	proxy              string
+	potBaseURL         string
 }
 
 // NewYtDlpSource creates a new yt-dlp source. cookiesFile and
 // cookiesFromBrowser are the optional yt-dlp cookie rescue options (see
 // config.YTDLP_COOKIES_FILE / YTDLP_COOKIES_FROM_BROWSER); both empty keeps
 // extraction in guest (no-login) mode. If both are provided, cookiesFile wins.
-func NewYtDlpSource(binaryPath, cookiesFile, cookiesFromBrowser string) *YtDlpSource {
+func NewYtDlpSource(binaryPath, cookiesFile, cookiesFromBrowser, proxy, potBaseURL string) *YtDlpSource {
 	if binaryPath == "" {
 		binaryPath = "yt-dlp"
 	}
@@ -32,6 +34,8 @@ func NewYtDlpSource(binaryPath, cookiesFile, cookiesFromBrowser string) *YtDlpSo
 		binaryPath:         binaryPath,
 		cookiesFile:        strings.TrimSpace(cookiesFile),
 		cookiesFromBrowser: strings.TrimSpace(cookiesFromBrowser),
+		proxy:              strings.TrimSpace(proxy),
+		potBaseURL:         strings.TrimRight(strings.TrimSpace(potBaseURL), "/"),
 	}
 }
 
@@ -41,8 +45,28 @@ func NewYtDlpSource(binaryPath, cookiesFile, cookiesFromBrowser string) *YtDlpSo
 // exactly base followed by target, so guest-mode args are identical to before.
 // The cookies file always takes precedence over the browser option.
 func (y *YtDlpSource) buildArgs(base []string, target string) []string {
-	args := make([]string, 0, len(base)+5)
+	args := make([]string, 0, len(base)+8)
 	args = append(args, "--source-address", "0.0.0.0")
+
+	// Modern yt-dlp only enables deno by default, so without this node is never
+	// picked up even though it is installed, and extraction silently runs on the
+	// deprecated no-JS path (missing formats, weaker formats).
+	args = append(args, "--js-runtimes", "node")
+
+	// Optional residential proxy: lets a datacenter-hosted bot egress from a
+	// home IP, which is what keeps apps like SimpMusic off YouTube's bot list.
+	if y.proxy != "" {
+		args = append(args, "--proxy", y.proxy)
+	}
+
+	// Optional bgutil PO token provider (HTTP sidecar). The bgutil plugin
+	// shipped in the image reads this base_url and answers YouTube's bot check
+	// with machine-generated proof-of-origin tokens, no account or cookies
+	// involved. Empty means the plugin stays dormant.
+	if y.potBaseURL != "" {
+		args = append(args, "--extractor-args", "youtubepot-bgutilhttp:base_url="+y.potBaseURL)
+	}
+
 	args = append(args, base...)
 	switch {
 	case y.cookiesFile != "":

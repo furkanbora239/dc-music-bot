@@ -17,6 +17,12 @@ ARG CACHEBUST=0
 RUN curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /bin/yt-dlp && \
     chmod a+rx /bin/yt-dlp
 
+# Fetch the bgutil PO token provider plugin (activates when YTDLP_POT_BASE_URL
+# is set; dormant otherwise). It is a plain zip that yt-dlp loads from its
+# plugins folder, no pip required for the standalone binary.
+RUN curl -L https://github.com/Brainicism/bgutil-ytdlp-pot-provider/releases/latest/download/bgutil-ytdlp-pot-provider.zip \
+    -o /tmp/bgutil-ytdlp-pot-provider.zip
+
 # Cache Go module dependencies
 COPY go.mod go.sum ./
 RUN go mod download
@@ -54,6 +60,9 @@ COPY --from=builder /bin/dc-music-bot /app/dc-music-bot
 # Create non-root user (security hardening)
 RUN adduser -D -u 1000 -h /home/botuser botuser && \
     chown -R botuser:botuser /app /home/botuser
+
+# yt-dlp loads plugins from ~/.config/yt-dlp/plugins (zip is imported as-is)
+COPY --from=builder --chown=botuser:botuser /tmp/bgutil-ytdlp-pot-provider.zip /home/botuser/.config/yt-dlp/plugins/bgutil-ytdlp-pot-provider.zip
 
 USER botuser
 ENV HOME=/home/botuser \

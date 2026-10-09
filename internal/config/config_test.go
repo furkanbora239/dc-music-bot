@@ -55,6 +55,19 @@ func TestConfigLoadAutoplay(t *testing.T) {
 	}
 }
 
+func TestConfigLoadPOTProvider(t *testing.T) {
+	t.Setenv("DISCORD_TOKEN", "tok")
+	t.Setenv("YTDLP_POT_BASE_URL", "http://bgutil-provider:4416")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.YtDlpPotBaseURL != "http://bgutil-provider:4416" {
+		t.Errorf("expected pot base url passthrough, got %q", cfg.YtDlpPotBaseURL)
+	}
+}
+
 func TestConfigLoadCustom(t *testing.T) {
 	t.Setenv("DISCORD_TOKEN", "custom-token")
 	t.Setenv("DEFAULT_VOLUME", "75")
@@ -84,6 +97,7 @@ func TestConfigCookiesDefaultGuest(t *testing.T) {
 	t.Setenv("DISCORD_TOKEN", "tok")
 	_ = os.Unsetenv("YTDLP_COOKIES_FILE")
 	_ = os.Unsetenv("YTDLP_COOKIES_FROM_BROWSER")
+	_ = os.Unsetenv("YTDLP_POT_BASE_URL")
 
 	cfg, err := Load()
 	if err != nil {

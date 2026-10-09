@@ -33,7 +33,7 @@ func NewBot(cfg *config.Config) (*Bot, error) {
 		session.LogLevel = discordgo.LogDebug
 	}
 
-	source := audio.NewYtDlpSource("", cfg.YtDlpCookiesFile, cfg.YtDlpCookiesFromBrowser)
+	source := audio.NewYtDlpSource("", cfg.YtDlpCookiesFile, cfg.YtDlpCookiesFromBrowser, cfg.YtDlpProxy, cfg.YtDlpPotBaseURL)
 	manager := player.NewManager()
 
 	b := &Bot{

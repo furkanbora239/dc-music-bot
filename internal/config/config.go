@@ -32,6 +32,17 @@ type Config struct {
 	// If both are set, the file takes precedence.
 	YtDlpCookiesFile        string
 	YtDlpCookiesFromBrowser string
+
+	// YTDLP_PROXY: optional proxy URL for yt-dlp requests, used to make a
+	// datacenter-hosted bot egress from a residential IP instead of being
+	// challenged by YouTube.
+	YtDlpProxy string
+
+	// YTDLP_POT_BASE_URL: base URL of a bgutil PO token provider HTTP server
+	// (e.g. http://bgutil-provider:4416). When set, yt-dlp's bgutil plugin
+	// fetches machine-generated proof-of-origin tokens from it to pass
+	// YouTube's bot check without accounts or cookies. Empty disables it.
+	YtDlpPotBaseURL string
 }
 
 // Load loads configuration from environment variables and optionally a .env file.
@@ -82,6 +93,8 @@ func Load() (*Config, error) {
 	// in guest (no-login) mode with exactly the same yt-dlp arguments as before.
 	cookiesFile := strings.TrimSpace(os.Getenv("YTDLP_COOKIES_FILE"))
 	cookiesFromBrowser := strings.TrimSpace(os.Getenv("YTDLP_COOKIES_FROM_BROWSER"))
+	proxy := strings.TrimSpace(os.Getenv("YTDLP_PROXY"))
+	potBaseURL := strings.TrimSpace(os.Getenv("YTDLP_POT_BASE_URL"))
 
 	// A configured cookie file that is missing/unreadable must not crash the
 	// bot: warn and drop it so we continue as guest (or fall back to a
@@ -117,5 +130,7 @@ func Load() (*Config, error) {
 		DefaultAutoplay:         defaultAutoplay,
 		YtDlpCookiesFile:        cookiesFile,
 		YtDlpCookiesFromBrowser: cookiesFromBrowser,
+		YtDlpProxy:              proxy,
+		YtDlpPotBaseURL:         potBaseURL,
 	}, nil
 }

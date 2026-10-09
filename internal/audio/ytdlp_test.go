@@ -27,11 +27,11 @@ var (
 )
 
 func TestBuildArgsGuestIdenticalToLegacy(t *testing.T) {
-	y := NewYtDlpSource("yt-dlp", "", "")
+	y := NewYtDlpSource("yt-dlp", "", "", "", "")
 
 	got := y.buildArgs(searchBase, "ytsearch1:test")
 	want := []string{
-		"--source-address", "0.0.0.0",
+		"--source-address", "0.0.0.0", "--js-runtimes", "node",
 		"--dump-json",
 		"--flat-playlist",
 		"--no-playlist",
@@ -45,7 +45,7 @@ func TestBuildArgsGuestIdenticalToLegacy(t *testing.T) {
 
 	got = y.buildArgs(streamBase, "https://youtu.be/dQw4w9WgXcQ")
 	want = []string{
-		"--source-address", "0.0.0.0",
+		"--source-address", "0.0.0.0", "--js-runtimes", "node",
 		"-g",
 		"-f", "ba/b",
 		"--no-playlist",
@@ -58,11 +58,11 @@ func TestBuildArgsGuestIdenticalToLegacy(t *testing.T) {
 }
 
 func TestBuildArgsCookiesFile(t *testing.T) {
-	y := NewYtDlpSource("yt-dlp", "/secrets/cookies.txt", "")
+	y := NewYtDlpSource("yt-dlp", "/secrets/cookies.txt", "", "", "")
 
 	got := y.buildArgs(streamBase, "target")
 	want := []string{
-		"--source-address", "0.0.0.0",
+		"--source-address", "0.0.0.0", "--js-runtimes", "node",
 		"-g",
 		"-f", "ba/b",
 		"--no-playlist",
@@ -76,11 +76,11 @@ func TestBuildArgsCookiesFile(t *testing.T) {
 }
 
 func TestBuildArgsCookiesFromBrowser(t *testing.T) {
-	y := NewYtDlpSource("yt-dlp", "", "firefox")
+	y := NewYtDlpSource("yt-dlp", "", "firefox", "", "")
 
 	got := y.buildArgs(searchBase, "target")
 	want := []string{
-		"--source-address", "0.0.0.0",
+		"--source-address", "0.0.0.0", "--js-runtimes", "node",
 		"--dump-json",
 		"--flat-playlist",
 		"--no-playlist",
@@ -97,11 +97,11 @@ func TestBuildArgsCookiesFromBrowser(t *testing.T) {
 func TestBuildArgsBothSetFileWins(t *testing.T) {
 	// Constructed directly with both options: the builder itself must prefer
 	// the cookies file even before config-level precedence is applied.
-	y := NewYtDlpSource("yt-dlp", "/secrets/cookies.txt", "chrome")
+	y := NewYtDlpSource("yt-dlp", "/secrets/cookies.txt", "chrome", "", "")
 
 	got := y.buildArgs(streamBase, "target")
 	want := []string{
-		"--source-address", "0.0.0.0",
+		"--source-address", "0.0.0.0", "--js-runtimes", "node",
 		"-g",
 		"-f", "ba/b",
 		"--no-playlist",
@@ -119,13 +119,52 @@ func TestBuildArgsBothSetFileWins(t *testing.T) {
 	}
 }
 
+func TestBuildArgsProxy(t *testing.T) {
+	y := NewYtDlpSource("yt-dlp", "", "", "socks5://100.64.0.5:1080", "")
+
+	got := y.buildArgs(streamBase, "target")
+	want := []string{
+		"--source-address", "0.0.0.0", "--js-runtimes", "node",
+		"--proxy", "socks5://100.64.0.5:1080",
+		"-g",
+		"-f", "ba/b",
+		"--no-playlist",
+		"--no-warnings",
+		"target",
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("proxy args:\n got %q\nwant %q", got, want)
+	}
+}
+
+func TestBuildArgsPOTProvider(t *testing.T) {
+	y := NewYtDlpSource("yt-dlp", "", "", "", "http://bgutil-provider:4416")
+
+	got := y.buildArgs(streamBase, "target")
+	want := []string{
+		"--source-address", "0.0.0.0", "--js-runtimes", "node",
+		"--extractor-args", "youtubepot-bgutilhttp:base_url=http://bgutil-provider:4416",
+		"-g",
+		"-f", "ba/b",
+		"--no-playlist",
+		"--no-warnings",
+		"target",
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("pot args:\n got %q\nwant %q", got, want)
+	}
+}
+
 func TestNewYtDlpSourceTrimsAndDefaultsBinary(t *testing.T) {
-	y := NewYtDlpSource("", " /tmp/c.txt ", "  safari ")
+	y := NewYtDlpSource("", " /tmp/c.txt ", "  safari ", "", "  http://host:4416/  ")
 	if y.binaryPath != "yt-dlp" {
 		t.Errorf("expected default binary 'yt-dlp', got %q", y.binaryPath)
 	}
 	if y.cookiesFile != "/tmp/c.txt" {
 		t.Errorf("expected trimmed cookies file, got %q", y.cookiesFile)
+	}
+	if y.potBaseURL != "http://host:4416" {
+		t.Errorf("expected trailing slash + spaces trimmed, got %q", y.potBaseURL)
 	}
 	if y.cookiesFromBrowser != "safari" {
 		t.Errorf("expected trimmed browser, got %q", y.cookiesFromBrowser)
@@ -136,7 +175,7 @@ func TestYtDlpGetRecommendationsLive(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping live test in short mode")
 	}
-	y := NewYtDlpSource("yt-dlp", "", "")
+	y := NewYtDlpSource("yt-dlp", "", "", "", "")
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
