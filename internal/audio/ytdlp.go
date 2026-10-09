@@ -291,6 +291,14 @@ func (y *YtDlpSource) GetRecommendations(ctx context.Context, seed *Track, limit
 				thumb = item.Thumbnails[len(item.Thumbnails)-1].URL
 			}
 
+			// Flat-playlist entries carry the WEBPAGE url in "url", not a media
+			// url. Trusting it here would hand ffmpeg an HTML page, which dies
+			// instantly and (with autoplay on) loops forever.
+			var directURL string
+			if strings.Contains(item.URL, "googlevideo.com") {
+				directURL = item.URL
+			}
+
 			tracks = append(tracks, &Track{
 				ID:         item.ID,
 				Title:      item.Title,
@@ -298,7 +306,7 @@ func (y *YtDlpSource) GetRecommendations(ctx context.Context, seed *Track, limit
 				Duration:   time.Duration(item.Duration * float64(time.Second)),
 				WebpageURL: webURL,
 				Thumbnail:  thumb,
-				StreamURL:  item.URL,
+				StreamURL:  directURL,
 			})
 
 			if len(tracks) >= limit {

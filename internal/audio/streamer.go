@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
+	"strings"
 	"sync"
 
 	"github.com/bwmarrin/discordgo"
@@ -108,6 +110,17 @@ func PlayStream(ctx context.Context, resolver URLResolver, vc *discordgo.VoiceCo
 	// therefore each receive the completion exactly once.
 	go func() {
 		err := <-encodeDone
+
+		// Surface what ffmpeg actually complained about. A failure otherwise
+		// only shows up as io.EOF on the frame channel, which hides the real
+		// cause (e.g. ffmpeg choking on a non-media URL or an expired stream).
+		if msg := strings.TrimSpace(sess.encodingSession.FFMPEGMessages()); msg != "" {
+			if len(msg) > 500 {
+				msg = msg[len(msg)-500:]
+			}
+			slog.Warn("ffmpeg reported messages", "ffmpeg_stderr", msg)
+		}
+
 		_ = vc.Speaking(false)
 		sess.Stop()
 		sess.done <- err

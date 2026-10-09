@@ -8,6 +8,11 @@ WORKDIR /src
 # Install curl in build stage to fetch the latest yt-dlp binary
 RUN apk add --no-cache ca-certificates curl
 
+# YouTube breaks yt-dlp every few weeks, so this layer must NOT be cached
+# forever. Bump it explicitly when bot-detection starts failing:
+#   docker compose build --build-arg CACHEBUST=$(date +%s)
+ARG CACHEBUST=0
+
 # Fetch latest standalone yt-dlp binary into builder
 RUN curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /bin/yt-dlp && \
     chmod a+rx /bin/yt-dlp

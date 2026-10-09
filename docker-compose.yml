@@ -30,6 +30,15 @@ services:
       retries: 3
       start_period: 30s
 
+    # Data center IP'lerinde YouTube'un "Sign in to confirm you're not a bot"
+    # duvarına karşı kurtarma yolu. Kullanmak için aynı dizine bir cookies.txt
+    # koy, aşağıdaki volume bloğunu aç ve .env içinde YTDLP_COOKIES_FILE=/app/cookies.txt
+    # yaz — sonra: docker compose up -d
+    # ÖNEMLİ: mount YAZILABİLİR olmalı (:ro ekleme!), yt-dlp çıkışta cookie
+    # kavanozunu dosyaya geri yazıyor; salt-okunur mount her çözümlemeyi çökertir.
+    # volumes:
+    #   - ./cookies.txt:/app/cookies.txt
+
     # 1. Kaynak Tüketim Limitleri (Sunucuyu korur, OOM engeller)
     # Not: Bellek 256M -> 512M çıkarıldı. Aynı anda birden fazla sunucuda çalarken
     # ffmpeg + yt-dlp süreçleri düşük limitte OOM-kill ile restart döngüsüne girebiliyor.

@@ -344,8 +344,34 @@ func (p *Player) Close() {
 	}
 }
 
+// maxConsecutiveFailures is how many tracks may fail in a row before playback
+// gives up instead of spinning on recommendations forever.
+const maxConsecutiveFailures = 3
+
+// tooManyFailures tells the guild what happened and leaves the channel instead
+// of looping through more doomed tracks.
+func (p *Player) tooManyFailures(track *audio.Track, err error) {
+	title := ""
+	if track != nil {
+		title = track.Title
+	}
+
+	slog.Error("Too many consecutive playback failures, stopping playback",
+		"guild", p.guildID, "track", title, "error", err, "limit", maxConsecutiveFailures)
+
+	p.sendTextMessage(fmt.Sprintf(
+		"🛑 Stopped after %d failed tracks in a row (last: **%s**). %s%s",
+		maxConsecutiveFailures, title, err, streamErrorHint(err)))
+	p.Close()
+}
+
 // playbackLoop is the core worker goroutine processing tracks.
 func (p *Player) playbackLoop() {
+	// Consecutive failure guard: without it, a broken source (blocked IP, dead
+	// stream URLs) makes autoplay refetch recommendations forever, one every
+	// couple of seconds.
+	var consecutiveFailures int
+
 	for {
 		p.mu.Lock()
 		if p.closed {
@@ -454,6 +480,10 @@ func (p *Player) playbackLoop() {
 		if err != nil || streamURL == "" {
 			slog.Error("Failed to resolve stream URL", "error", err, "track", nextTrack.Title)
 			p.sendTextMessage(fmt.Sprintf("❌ Error resolving stream for **%s**: %v%s", nextTrack.Title, err, streamErrorHint(err)))
+			if consecutiveFailures++; consecutiveFailures >= maxConsecutiveFailures {
+				p.tooManyFailures(nextTrack, err)
+				return
+			}
 			continue
 		}
 
@@ -469,6 +499,10 @@ func (p *Player) playbackLoop() {
 		if err != nil {
 			slog.Error("Failed to play audio stream", "error", err, "track", nextTrack.Title)
 			p.sendTextMessage(fmt.Sprintf("❌ Audio playback failed for **%s**: %v", nextTrack.Title, err))
+			if consecutiveFailures++; consecutiveFailures >= maxConsecutiveFailures {
+				p.tooManyFailures(nextTrack, err)
+				return
+			}
 			continue
 		}
 
@@ -476,6 +510,7 @@ func (p *Player) playbackLoop() {
 		p.streamSession = streamSess
 		p.mu.Unlock()
 
+		consecutiveFailures = 0
 		slog.Info("Playback successfully started", "track", nextTrack.Title)
 
 		// Send Now Playing notification
